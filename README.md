@@ -204,7 +204,6 @@ This tool bypasses the kernel driver entirely by using `libusb` for direct USB b
 
 - The web app now computes dashboard channel and bank counts from the actual channel map rather than estimating from a single channel per bank.
 - The web app and CLI both target the same safe, reversible scanner programming surface. Firmware and other unsafe operations are intentionally out of scope.
-- Native macOS app planning notes live in [docs/NATIVE_MAC_APP_PLAN.md](docs/NATIVE_MAC_APP_PLAN.md).
 
 ## Contributing
 
