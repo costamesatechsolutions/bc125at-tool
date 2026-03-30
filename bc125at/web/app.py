@@ -73,6 +73,16 @@ def safe_disconnect():
             pass
         _conn = None
 
+
+def safe_exit_program_mode():
+    """Return scanner to normal scan/hold mode if we left it in program mode."""
+    global _conn
+    if _conn and getattr(_conn, "in_program_mode", False):
+        try:
+            _conn.exit_program_mode()
+        except Exception:
+            pass
+
 # Register cleanup handlers
 atexit.register(safe_disconnect)
 
@@ -82,6 +92,12 @@ def _signal_handler(signum, frame):
 
 signal.signal(signal.SIGINT, _signal_handler)
 signal.signal(signal.SIGTERM, _signal_handler)
+
+
+@app.after_request
+def _leave_program_mode_after_request(response):
+    safe_exit_program_mode()
+    return response
 
 
 HTML_TEMPLATE = '''<!DOCTYPE html>
