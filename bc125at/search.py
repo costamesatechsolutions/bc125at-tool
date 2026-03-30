@@ -34,7 +34,7 @@ class CloseCallSettings:
     alert_beep: bool = False
     alert_light: bool = False
     bands: List[bool] = field(default_factory=lambda: [True] * 5)
-    lockout: bool = False  # 0=Lockout, 1=Unlocked in protocol
+    lockout: bool = False  # True means lockout is enabled; protocol uses 0=locked, 1=unlocked
 
     @property
     def mode_display(self):
@@ -83,7 +83,7 @@ class SearchManager:
                 alert_beep=parts[2] == "1",
                 alert_light=parts[3] == "1",
                 bands=bands,
-                lockout=parts[5] == "1" if len(parts) > 5 else False,
+                lockout=parts[5] == "0" if len(parts) > 5 else False,
             )
         raise ConnectionError(f"Failed to read Close Call settings: {resp}")
 
@@ -98,7 +98,7 @@ class SearchManager:
         cmd = (
             f"CLC,{cc.mode},{1 if cc.alert_beep else 0},"
             f"{1 if cc.alert_light else 0},{bands_str},"
-            f"{1 if cc.lockout else 0}"
+            f"{0 if cc.lockout else 1}"
         )
         resp = self.conn.send_command(cmd)
         if resp != "CLC,OK":

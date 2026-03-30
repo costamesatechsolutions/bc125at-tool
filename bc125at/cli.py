@@ -457,6 +457,16 @@ def cmd_export(args):
                     "lockout": cc.lockout,
                 },
                 "service_groups": sg,
+                "custom_groups": srch.read_custom_search_groups(),
+                "search_ranges": [
+                    {
+                        "index": r.index,
+                        "lower_freq": r.lower_freq,
+                        "upper_freq": r.upper_freq,
+                    }
+                    for r in srch.read_all_custom_search_ranges()
+                ],
+                "lockout_frequencies": srch.read_lockout_frequencies(),
             }
 
             filepath = args.file or f"bc125at_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
@@ -537,6 +547,24 @@ def cmd_import(args):
                             lockout=cc_data.get("lockout", False),
                         )
                         srch.write_close_call(cc)
+                    if "service_groups" in search_dict:
+                        srch.write_service_groups(search_dict["service_groups"])
+                    if "custom_groups" in search_dict:
+                        srch.write_custom_search_groups({
+                            int(k): v for k, v in search_dict["custom_groups"].items()
+                        })
+                    if "search_ranges" in search_dict:
+                        for range_data in search_dict["search_ranges"]:
+                            srch.write_custom_search_range(CustomSearchRange(
+                                index=int(range_data["index"]),
+                                lower_freq=float(range_data["lower_freq"]),
+                                upper_freq=float(range_data["upper_freq"]),
+                            ))
+                    if "lockout_frequencies" in search_dict:
+                        for freq in srch.read_lockout_frequencies():
+                            srch.unlock_frequency(freq)
+                        for freq in search_dict["lockout_frequencies"]:
+                            srch.lock_frequency(float(freq))
 
             print(f"\nFull backup restored successfully.")
             return

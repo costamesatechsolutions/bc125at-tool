@@ -1684,8 +1684,33 @@ def api_export(format):
                 "contrast": s.contrast, "volume": s.volume,
                 "squelch": s.squelch, "weather_alert": s.weather_alert,
             }
+            srch = SearchManager(conn)
+            ss = srch.read_search_settings()
+            cc = srch.read_close_call()
+            search_dict = {
+                "delay": ss.delay,
+                "code_search": ss.code_search,
+                "close_call": {
+                    "mode": cc.mode,
+                    "alert_beep": cc.alert_beep,
+                    "alert_light": cc.alert_light,
+                    "bands": cc.bands,
+                    "lockout": cc.lockout,
+                },
+                "service_groups": srch.read_service_groups(),
+                "custom_groups": srch.read_custom_search_groups(),
+                "search_ranges": [
+                    {
+                        "index": r.index,
+                        "lower_freq": r.lower_freq,
+                        "upper_freq": r.upper_freq,
+                    }
+                    for r in srch.read_all_custom_search_ranges()
+                ],
+                "lockout_frequencies": srch.read_lockout_frequencies(),
+            }
             filepath = tempfile.mktemp(suffix='.json')
-            export_full_backup(channels, settings_dict, {}, filepath)
+            export_full_backup(channels, settings_dict, search_dict, filepath)
             return send_file(filepath, as_attachment=True,
                            download_name=f'bc125at_backup_{timestamp}.json')
         elif format == 'csv':
@@ -1729,8 +1754,44 @@ def api_import():
                     sm = SettingsManager(conn)
                     s = ScannerSettings(**settings_dict)
                     sm.write_all(s)
+                if search_dict:
+                    srch = SearchManager(conn)
+                    if "delay" in search_dict:
+                        ss = SearchSettings(
+                            delay=search_dict["delay"],
+                            code_search=search_dict.get("code_search", False),
+                        )
+                        srch.write_search_settings(ss)
+                    if "close_call" in search_dict:
+                        cc_data = search_dict["close_call"]
+                        cc = CloseCallSettings(
+                            mode=cc_data.get("mode", 0),
+                            alert_beep=cc_data.get("alert_beep", False),
+                            alert_light=cc_data.get("alert_light", False),
+                            bands=cc_data.get("bands", [True] * 5),
+                            lockout=cc_data.get("lockout", False),
+                        )
+                        srch.write_close_call(cc)
+                    if "service_groups" in search_dict:
+                        srch.write_service_groups(search_dict["service_groups"])
+                    if "custom_groups" in search_dict:
+                        srch.write_custom_search_groups({
+                            int(k): v for k, v in search_dict["custom_groups"].items()
+                        })
+                    if "search_ranges" in search_dict:
+                        for range_data in search_dict["search_ranges"]:
+                            srch.write_custom_search_range(CustomSearchRange(
+                                index=int(range_data["index"]),
+                                lower_freq=float(range_data["lower_freq"]),
+                                upper_freq=float(range_data["upper_freq"]),
+                            ))
+                    if "lockout_frequencies" in search_dict:
+                        for freq in srch.read_lockout_frequencies():
+                            srch.unlock_frequency(freq)
+                        for freq in search_dict["lockout_frequencies"]:
+                            srch.lock_frequency(float(freq))
                 os.unlink(filepath)
-                return jsonify({"ok": True, "message": f"Restored full backup: {len(channels)} channels + settings"})
+                return jsonify({"ok": True, "message": f"Restored full backup: {len(channels)} channels + settings + search"})
 
         channels = import_auto(filepath)
         conn = get_conn()
