@@ -454,12 +454,12 @@ body {
     </div>
 
     <nav class="nav">
-        <button class="active" onclick="showPanel('dashboard')">Dashboard</button>
-        <button onclick="showPanel('channels')">Channels</button>
-        <button onclick="showPanel('presets')">Presets</button>
-        <button onclick="showPanel('search')">Search & Close Call</button>
-        <button onclick="showPanel('settings')">Settings</button>
-        <button onclick="showPanel('backup')">Backup & Import</button>
+        <button class="active" data-panel="dashboard" onclick="showPanel('dashboard', this)">Dashboard</button>
+        <button data-panel="channels" onclick="showPanel('channels', this)">Channels</button>
+        <button data-panel="presets" onclick="showPanel('presets', this)">Presets</button>
+        <button data-panel="search" onclick="showPanel('search', this)">Search & Close Call</button>
+        <button data-panel="settings" onclick="showPanel('settings', this)">Settings</button>
+        <button data-panel="backup" onclick="showPanel('backup', this)">Backup & Import</button>
     </nav>
 
     <!-- DASHBOARD -->
@@ -489,6 +489,21 @@ body {
                 <div class="info-item"><div class="label">Weather Alert</div><div class="value" id="statWX">-</div></div>
                 <div class="info-item"><div class="label">Band Plan</div><div class="value" id="statBand">-</div></div>
             </div>
+        </div>
+        <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <h2 style="margin-bottom:0">Live Monitor</h2>
+                <button class="btn btn-secondary btn-sm" onclick="loadLiveMonitor()">Refresh</button>
+            </div>
+            <div class="info-grid">
+                <div class="info-item"><div class="label">Frequency</div><div class="value" id="liveFreq">-</div></div>
+                <div class="info-item"><div class="label">Modulation</div><div class="value" id="liveMod">-</div></div>
+                <div class="info-item"><div class="label">Channel</div><div class="value" id="liveChannel">-</div></div>
+                <div class="info-item"><div class="label">Name</div><div class="value" id="liveName">-</div></div>
+                <div class="info-item"><div class="label">Squelch</div><div class="value" id="liveSql">-</div></div>
+                <div class="info-item"><div class="label">Status</div><div class="value" id="liveStatus">-</div></div>
+            </div>
+            <div class="setting-help">Use your scanner's headphone or line output into your Mac or audio interface if you want the audio on the computer. USB here is used for control and status, not USB audio.</div>
         </div>
     </div>
 
@@ -679,13 +694,22 @@ body {
 let currentBank = 1;
 let selectedPreset = null;
 let channels = {};
+let activePanel = 'dashboard';
+let liveMonitorTimer = null;
 
 // --- Navigation ---
-function showPanel(name) {
+function showPanel(name, button=null) {
+    if (activePanel === 'dashboard' && name !== 'dashboard' && liveMonitorTimer) {
+        clearTimeout(liveMonitorTimer);
+        liveMonitorTimer = null;
+    }
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
     document.getElementById('panel-' + name).classList.add('active');
-    event.target.classList.add('active');
+    activePanel = name;
+
+    const targetButton = button || document.querySelector('.nav button[data-panel="' + name + '"]');
+    if (targetButton) targetButton.classList.add('active');
 
     if (name === 'dashboard') loadDashboard();
     if (name === 'channels') loadBank(currentBank);
@@ -766,6 +790,8 @@ async function loadDashboard() {
             '" onclick="setBankEnabled(' + bank + ',' + (!enabled) + ')">' + (enabled ? 'Disable' : 'Enable') + '</button></div>';
         bg.appendChild(div);
     }
+
+    loadLiveMonitor();
 }
 
 async function setBankEnabled(bank, enabled) {
@@ -773,6 +799,23 @@ async function setBankEnabled(bank, enabled) {
     if (result) {
         toast('Bank ' + bank + ' ' + (enabled ? 'enabled' : 'disabled'));
         loadDashboard();
+    }
+}
+
+async function loadLiveMonitor() {
+    if (activePanel !== 'dashboard') return;
+    const data = await api('live');
+    if (!data) return;
+    document.getElementById('liveFreq').textContent = data.frequency || '-';
+    document.getElementById('liveMod').textContent = data.modulation || '-';
+    document.getElementById('liveChannel').textContent = data.channel || '-';
+    document.getElementById('liveName').textContent = data.name || '-';
+    document.getElementById('liveSql').textContent = data.squelch_open ? 'Open' : 'Closed';
+    document.getElementById('liveStatus').textContent = data.status || '-';
+
+    if (liveMonitorTimer) clearTimeout(liveMonitorTimer);
+    if (activePanel === 'dashboard') {
+        liveMonitorTimer = setTimeout(loadLiveMonitor, 1000);
     }
 }
 
@@ -1058,6 +1101,10 @@ async function saveCustomGroup(group, value) {
 async function saveSearchRange(index) {
     const lower = document.getElementById('rangeLower' + index).value;
     const upper = document.getElementById('rangeUpper' + index).value;
+    if (!lower || !upper || Number(lower) >= Number(upper)) {
+        toast('Enter a valid lower and upper range', 'error');
+        return;
+    }
     const result = await api('search/range', { method: 'POST', body: { index: index, lower: lower, upper: upper } });
     if (result) {
         toast('Search range ' + index + ' updated');
@@ -1068,6 +1115,10 @@ async function saveSearchRange(index) {
 async function addLockoutFrequency() {
     const input = document.getElementById('newLockoutFreq');
     const frequency = input.value;
+    if (!frequency || Number(frequency) <= 0) {
+        toast('Enter a valid lockout frequency', 'error');
+        return;
+    }
     const result = await api('search/lockout', { method: 'POST', body: { frequency: frequency } });
     if (result) {
         toast('Lockout frequency added');
@@ -1475,6 +1526,47 @@ def api_search():
                 for r in ranges
             ],
             "lockout_frequencies": lockout_freqs,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route('/api/live')
+def api_live():
+    try:
+        conn = get_conn()
+        status_resp = conn.get_status() or ""
+        live_resp = conn.get_live_info() or ""
+
+        freq = "-"
+        modulation = "-"
+        name = "-"
+        channel = "-"
+        squelch_open = False
+        status = status_resp or "-"
+
+        if live_resp.startswith("GLG"):
+            parts = live_resp.split(",")
+            freq_raw = parts[1] if len(parts) > 1 else ""
+            modulation = parts[2] if len(parts) > 2 and parts[2] else "-"
+            name = parts[7].strip() if len(parts) > 7 and parts[7].strip() else "-"
+            squelch_open = (parts[8] == "1") if len(parts) > 8 else False
+            channel_val = parts[11].strip() if len(parts) > 11 else ""
+            channel = f"CH {channel_val}" if channel_val else "-"
+            try:
+                if freq_raw and int(freq_raw) > 0:
+                    freq = f"{int(freq_raw) / 10000.0:.4f} MHz"
+            except ValueError:
+                freq = freq_raw or "-"
+
+        return jsonify({
+            "status": status,
+            "frequency": freq,
+            "modulation": modulation,
+            "name": name,
+            "channel": channel,
+            "squelch_open": squelch_open,
+            "raw_live": live_resp,
         })
     except Exception as e:
         return jsonify({"error": str(e)})

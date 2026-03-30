@@ -30,7 +30,7 @@ This tool communicates directly with the scanner over USB, bypassing the macOS s
 - **Import/Export** — CSV and JSON formats, plus full backup (channels + settings + search config)
 - **Web GUI** — Clean, modern browser-based interface
 - **CLI** — Full command-line interface for power users and scripting
-- **Live Monitor** — Watch what the scanner is receiving in real-time
+- **Live Monitor** — Watch what the scanner is receiving in real-time from the web UI or CLI
 
 ## Safety
 
@@ -97,6 +97,7 @@ Opens automatically at `http://localhost:5125`. From here you can:
 - Adjust all safe global settings with sliders and dropdowns
 - Manage bank enable/disable state
 - Edit Search and Close Call settings, custom search ranges, and lockout frequencies
+- Monitor current scanner activity live from the dashboard
 - Export/import channel programming
 - Create full backups
 
@@ -104,6 +105,11 @@ Dashboard stats:
 - `Programmed Channels` is the exact number of non-empty channels out of 500
 - `Programmed Banks` is the exact number of banks containing at least one programmed channel
 - `Enabled Banks` is the scanner's actual bank enable/disable state
+
+Audio note:
+- The BC125AT control connection here is USB data, not USB audio
+- If you want scanner audio on your Mac, feed the scanner's headphone/line output into your Mac audio input or a USB audio interface
+- The app can monitor/control scanner state while audio is routed separately
 
 ### Command Line
 
