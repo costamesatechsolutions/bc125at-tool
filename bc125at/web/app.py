@@ -83,6 +83,37 @@ def safe_exit_program_mode():
         except Exception:
             pass
 
+
+def _clean_display_text(value):
+    """Keep scanner display text readable for the web UI."""
+    if not value:
+        return ""
+    cleaned = "".join(ch if 32 <= ord(ch) <= 126 else " " for ch in str(value))
+    return " ".join(cleaned.split()).strip()
+
+
+def _parse_status_response(status_resp):
+    """Extract a friendly status label and display text from STS output."""
+    if not status_resp or not status_resp.startswith("STS"):
+        return {"status": status_resp or "-", "display_lines": []}
+
+    parts = status_resp.split(",")
+    display_lines = []
+    for part in parts[2:]:
+        cleaned = _clean_display_text(part)
+        if cleaned and not cleaned.isdigit() and cleaned != "0.0000":
+            display_lines.append(cleaned)
+
+    status = "Monitoring"
+    if any("Close Call" in line for line in display_lines):
+        status = "Close Call"
+    elif any("Scan" in line for line in display_lines):
+        status = "Scanning"
+    elif any("Hold" in line for line in display_lines):
+        status = "Hold"
+
+    return {"status": status, "display_lines": display_lines}
+
 # Register cleanup handlers
 atexit.register(safe_disconnect)
 
@@ -1553,27 +1584,49 @@ def api_live():
         conn = get_conn()
         status_resp = conn.get_status() or ""
         live_resp = conn.get_live_info() or ""
+        parsed_status = _parse_status_response(status_resp)
 
         freq = "-"
         modulation = "-"
         name = "-"
         channel = "-"
         squelch_open = False
-        status = status_resp or "-"
+        status = parsed_status["status"]
 
         if live_resp.startswith("GLG"):
             parts = live_resp.split(",")
             freq_raw = parts[1] if len(parts) > 1 else ""
-            modulation = parts[2] if len(parts) > 2 and parts[2] else "-"
-            name = parts[7].strip() if len(parts) > 7 and parts[7].strip() else "-"
+            modulation = _clean_display_text(parts[2]) if len(parts) > 2 and parts[2] else "-"
+            name = _clean_display_text(parts[7]) if len(parts) > 7 else ""
             squelch_open = (parts[8] == "1") if len(parts) > 8 else False
-            channel_val = parts[11].strip() if len(parts) > 11 else ""
-            channel = f"CH {channel_val}" if channel_val else "-"
+            channel_val = _clean_display_text(parts[11]) if len(parts) > 11 else ""
+            if channel_val.isdigit() and 1 <= int(channel_val) <= 500:
+                channel = f"CH {channel_val}"
             try:
                 if freq_raw and int(freq_raw) > 0:
                     freq = f"{int(freq_raw) / 10000.0:.4f} MHz"
             except ValueError:
                 freq = freq_raw or "-"
+
+            if not name or name in ("-", "0"):
+                name = "-"
+
+        if name == "-" and parsed_status["display_lines"]:
+            # Prefer meaningful front-panel text like "Close Call Hits" over blank names.
+            name = parsed_status["display_lines"][0]
+        if modulation in ("", "-") and parsed_status["display_lines"]:
+            for line in parsed_status["display_lines"]:
+                if line in ("AM", "FM", "NFM", "AUTO"):
+                    modulation = line
+                    break
+        if channel == "-" and parsed_status["display_lines"]:
+            for line in parsed_status["display_lines"]:
+                compact = line.replace(" ", "")
+                if compact.startswith("CH") and compact[2:].isdigit():
+                    ch_num = int(compact[2:])
+                    if 1 <= ch_num <= 500:
+                        channel = f"CH {ch_num}"
+                        break
 
         return jsonify({
             "status": status,
@@ -1583,6 +1636,7 @@ def api_live():
             "channel": channel,
             "squelch_open": squelch_open,
             "raw_live": live_resp,
+            "raw_status": status_resp,
         })
     except Exception as e:
         return jsonify({"error": str(e)})
