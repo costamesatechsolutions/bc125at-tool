@@ -83,7 +83,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BC125AT Scanner Tool</title>
+<title>BC125AT Scanner Tool v2</title>
 <style>
 :root {
     --bg: #0f1117;
@@ -924,61 +924,78 @@ async function loadSettings() {
     const c = document.getElementById('settingsContent');
     let html = '';
 
+    // Helper: build a slider row
+    function slider(label, id, min, max, val, spanId) {
+        return '<div class="setting-row"><div class="setting-label">'+label+'</div><div class="setting-value">' +
+            '<input type="range" min="'+min+'" max="'+max+'" value="'+val+'" id="'+id+'">' +
+            ' <span id="'+spanId+'">'+val+'</span>/'+max+'</div></div>';
+    }
+    function dropdown(label, id, options, currentVal) {
+        let opts = options.map(o =>
+            '<option value="'+o.v+'"'+(String(currentVal)===String(o.v)?' selected':'')+'>'+o.l+'</option>'
+        ).join('');
+        return '<div class="setting-row"><div class="setting-label">'+label+'</div><div class="setting-value">' +
+            '<select id="'+id+'" class="inline-edit">'+opts+'</select></div></div>';
+    }
+
     // Volume slider
-    html += '<div class="setting-row"><div class="setting-label">Volume</div><div class="setting-value">' +
-        '<input type="range" min="0" max="15" value="' + data.volume + '" id="setVolume" ' +
-        'oninput="document.getElementById(\'volVal\').textContent=this.value" ' +
-        'onchange="saveSetting(\'volume\',this.value)">' +
-        ' <span id="volVal">' + data.volume + '</span>/15</div></div>';
+    html += slider('Volume', 'setVolume', 0, 15, data.volume, 'volVal');
 
     // Squelch slider
-    html += '<div class="setting-row"><div class="setting-label">Squelch</div><div class="setting-value">' +
-        '<input type="range" min="0" max="15" value="' + data.squelch + '" id="setSquelch" ' +
-        'oninput="document.getElementById(\'sqlVal\').textContent=this.value" ' +
-        'onchange="saveSetting(\'squelch\',this.value)">' +
-        ' <span id="sqlVal">' + data.squelch + '</span>/15</div></div>';
+    html += slider('Squelch', 'setSquelch', 0, 15, data.squelch, 'sqlVal');
 
     // Contrast slider
-    html += '<div class="setting-row"><div class="setting-label">Contrast</div><div class="setting-value">' +
-        '<input type="range" min="1" max="15" value="' + data.contrast + '" id="setContrast" ' +
-        'oninput="document.getElementById(\'cntVal\').textContent=this.value" ' +
-        'onchange="saveSetting(\'contrast\',this.value)">' +
-        ' <span id="cntVal">' + data.contrast + '</span>/15</div></div>';
+    html += slider('Contrast', 'setContrast', 1, 15, data.contrast, 'cntVal');
 
     // Backlight dropdown
-    html += '<div class="setting-row"><div class="setting-label">Backlight</div><div class="setting-value">' +
-        '<select onchange="saveSetting(\'backlight\',this.value)" class="inline-edit">' +
-        ['AF','KY','SQ','KS','AO'].map(v => {
-            const labels = {AF:'Always Off',KY:'Keypress',SQ:'Squelch',KS:'Key+Squelch',AO:'Always On'};
-            return '<option value="'+v+'"'+(data.backlight===v?' selected':'')+'>'+labels[v]+'</option>';
-        }).join('') + '</select></div></div>';
+    html += dropdown('Backlight', 'setBacklight', [
+        {v:'AF',l:'Always Off'},{v:'KY',l:'Keypress'},{v:'SQ',l:'Squelch'},{v:'KS',l:'Key+Squelch'},{v:'AO',l:'Always On'}
+    ], data.backlight);
 
     // Priority dropdown
-    html += '<div class="setting-row"><div class="setting-label">Priority Mode</div><div class="setting-value">' +
-        '<select onchange="saveSetting(\'priority\',this.value)" class="inline-edit">' +
-        [{v:0,l:'Off'},{v:1,l:'On'},{v:2,l:'Plus On'},{v:3,l:'Do Not Disturb'}].map(o =>
-            '<option value="'+o.v+'"'+(data.priority_mode===o.v?' selected':'')+'>'+o.l+'</option>'
-        ).join('') + '</select></div></div>';
+    html += dropdown('Priority Mode', 'setPriority', [
+        {v:0,l:'Off'},{v:1,l:'On'},{v:2,l:'Plus On'},{v:3,l:'Do Not Disturb'}
+    ], data.priority_mode);
 
     // Weather Alert toggle
-    html += '<div class="setting-row"><div class="setting-label">Weather Alert</div><div class="setting-value">' +
-        '<select onchange="saveSetting(\'wxalert\',this.value)" class="inline-edit">' +
-        '<option value="0"'+(data.weather_alert?'':' selected')+'>Off</option>' +
-        '<option value="1"'+(data.weather_alert?' selected':'')+'>On</option>' +
-        '</select></div></div>';
+    html += dropdown('Weather Alert', 'setWxAlert', [
+        {v:0,l:'Off'},{v:1,l:'On'}
+    ], data.weather_alert ? 1 : 0);
 
     // Key Beep toggle
-    html += '<div class="setting-row"><div class="setting-label">Key Beep</div><div class="setting-value">' +
-        '<select onchange="saveSetting(\'keybeep\',this.value)" class="inline-edit">' +
-        '<option value="0"'+(data.key_beep_level===0?' selected':'')+'>Auto</option>' +
-        '<option value="99"'+(data.key_beep_level===99?' selected':'')+'>Off</option>' +
-        '</select></div></div>';
+    html += dropdown('Key Beep', 'setKeyBeep', [
+        {v:0,l:'Auto'},{v:99,l:'Off'}
+    ], data.key_beep_level);
 
     // Read-only info
     html += '<div class="setting-row"><div class="setting-label">Band Plan</div><div class="setting-value">' + data.band_plan_display + '</div></div>';
     html += '<div class="setting-row"><div class="setting-label">Battery Timer</div><div class="setting-value">' + data.battery_charge_time + 'h</div></div>';
 
     c.innerHTML = html;
+
+    function bindSlider(inputId, valueId, settingKey) {
+        const input = document.getElementById(inputId);
+        const value = document.getElementById(valueId);
+        if (!input || !value) return;
+        input.addEventListener('input', () => {
+            value.textContent = input.value;
+        });
+        input.addEventListener('change', () => saveSetting(settingKey, input.value));
+    }
+
+    function bindSelect(id, settingKey) {
+        const select = document.getElementById(id);
+        if (!select) return;
+        select.addEventListener('change', () => saveSetting(settingKey, select.value));
+    }
+
+    bindSlider('setVolume', 'volVal', 'volume');
+    bindSlider('setSquelch', 'sqlVal', 'squelch');
+    bindSlider('setContrast', 'cntVal', 'contrast');
+    bindSelect('setBacklight', 'backlight');
+    bindSelect('setPriority', 'priority');
+    bindSelect('setWxAlert', 'wxalert');
+    bindSelect('setKeyBeep', 'keybeep');
 }
 
 async function saveSetting(key, value) {
@@ -1045,9 +1062,15 @@ function initToneSelect() {
     sel.innerHTML += '</optgroup>';
 }
 
-initToneSelect();
-initBankTabs();
-loadDashboard();
+try {
+    initToneSelect();
+    initBankTabs();
+    loadDashboard();
+    console.log('BC125AT GUI initialized');
+} catch(e) {
+    console.error('Init error:', e);
+    document.getElementById('connStatus').textContent = 'JS Error: ' + e.message;
+}
 </script>
 </body>
 </html>'''
@@ -1059,7 +1082,10 @@ loadDashboard();
 
 @app.route('/')
 def index():
-    return render_template_string(HTML_TEMPLATE)
+    response = app.make_response(render_template_string(HTML_TEMPLATE))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    return response
 
 
 @app.route('/api/info')
