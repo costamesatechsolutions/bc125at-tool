@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.eggs/
+*.csv
+*.json
+!package.json
+.DS_Store
