@@ -14,6 +14,7 @@ This tool communicates directly with the scanner over USB, bypassing the macOS s
 
 - **Full Channel Programming** — Read, write, and manage all 500 channels across 10 banks
 - **Bank Management** — View bank enable/disable state, programmed counts, and manage banks from the web UI or CLI
+- **Bank Management** — View bank enable/disable state, programmed counts, clear banks, and manage banks from the web UI or CLI
 - **Built-in Frequency Presets** — One-click loading for:
   - IMSA Racing (race control, safety, timing, pit lane)
   - NASCAR (race ops, officials, example team frequencies)
@@ -96,6 +97,7 @@ Opens automatically at `http://localhost:5125`. From here you can:
 - Load presets with one click
 - Adjust all safe global settings with sliders and dropdowns
 - Manage bank enable/disable state
+- Clear a bank before repurposing it
 - Edit Search and Close Call settings, custom search ranges, and lockout frequencies
 - Monitor current scanner activity live from the dashboard
 - Export/import channel programming

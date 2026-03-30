@@ -568,6 +568,7 @@ body {
                 <h2 style="margin-bottom:0">Channel Editor</h2>
                 <div style="display:flex;gap:8px;">
                     <button class="btn btn-primary btn-sm" onclick="showAddChannel()">+ Add Channel</button>
+                    <button class="btn btn-danger btn-sm" onclick="clearCurrentBank()">Clear Current Bank</button>
                 </div>
             </div>
             <div class="bank-tabs" id="bankTabs"></div>
@@ -841,7 +842,8 @@ async function loadDashboard() {
             (enabled ? 'Enabled' : 'Disabled') + '</div>' +
             '<div style="color:var(--text2);font-size:12px;margin-top:6px;">' + count + ' programmed channel' + (count === 1 ? '' : 's') + '</div>' +
             '<div style="margin-top:10px;"><button class="btn btn-sm ' + (enabled ? 'btn-danger' : 'btn-success') +
-            '" onclick="setBankEnabled(' + bank + ',' + (!enabled) + ')">' + (enabled ? 'Disable' : 'Enable') + '</button></div>';
+            '" onclick="setBankEnabled(' + bank + ',' + (!enabled) + ')">' + (enabled ? 'Disable' : 'Enable') + '</button> ' +
+            '<button class="btn btn-sm btn-secondary" onclick="clearBank(' + bank + ')">Clear</button></div>';
         bg.appendChild(div);
     }
 
@@ -854,6 +856,20 @@ async function setBankEnabled(bank, enabled) {
         toast('Bank ' + bank + ' ' + (enabled ? 'enabled' : 'disabled'));
         loadDashboard();
     }
+}
+
+async function clearBank(bank) {
+    if (!confirm('Clear all 50 channels in Bank ' + bank + '?')) return;
+    const result = await api('banks/clear', { method: 'POST', body: { bank: bank } });
+    if (result) {
+        toast('Bank ' + bank + ' cleared');
+        loadDashboard();
+        if (currentBank === bank) loadBank(bank);
+    }
+}
+
+function clearCurrentBank() {
+    clearBank(currentBank);
 }
 
 async function loadLiveMonitor() {
@@ -1541,6 +1557,21 @@ def api_set_bank():
         banks = cm.get_bank_status()
         banks[bank] = enabled
         cm.set_bank_status(banks)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route('/api/banks/clear', methods=['POST'])
+def api_clear_bank():
+    try:
+        data = _require_json_dict()
+        bank = int(data['bank'])
+        if bank not in range(10):
+            return jsonify({"error": "Bank must be 0-9"})
+        conn = get_conn()
+        cm = ChannelManager(conn)
+        cm.clear_bank(bank)
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"error": str(e)})

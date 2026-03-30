@@ -343,6 +343,21 @@ class ChannelManager:
             raise ConnectionError(f"Failed to delete channel {index}: {resp}")
         return True
 
+    def clear_bank(self, bank_num, callback=None):
+        """Delete all 50 channels in a bank (0-9)."""
+        if bank_num not in range(NUM_BANKS):
+            raise ValueError("Bank must be 0-9")
+        start = 451 if bank_num == 0 else (bank_num - 1) * CHANNELS_PER_BANK + 1
+        end = start + CHANNELS_PER_BANK
+        self.conn.enter_program_mode()
+        for i, channel_index in enumerate(range(start, end), 1):
+            resp = self.conn.send_command(f"DCH,{channel_index}")
+            if resp != "DCH,OK":
+                raise ConnectionError(f"Failed to clear channel {channel_index}: {resp}")
+            if callback:
+                callback(i, channel_index)
+        return True
+
     def read_all_channels(self, callback=None):
         """Read all 500 channels. Optional callback(index, channel) for progress."""
         self.conn.enter_program_mode()
