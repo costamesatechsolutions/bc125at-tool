@@ -13,7 +13,7 @@ import signal
 import sys
 import webbrowser
 import threading
-from flask import Flask, render_template_string, jsonify, request, send_file
+from flask import Flask, render_template_string, jsonify, request, send_file, after_this_request
 from datetime import datetime
 from io import StringIO
 import tempfile
@@ -113,6 +113,13 @@ def _parse_status_response(status_resp):
         status = "Hold"
 
     return {"status": status, "display_lines": display_lines}
+
+
+def _require_json_dict():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        raise ValueError("Expected JSON object request body")
+    return data
 
 # Register cleanup handlers
 atexit.register(safe_disconnect)
@@ -1491,7 +1498,7 @@ def api_channels_bank(bank):
 @app.route('/api/channels/set', methods=['POST'])
 def api_set_channel():
     try:
-        data = request.json
+        data = _require_json_dict()
         ch = Channel(
             index=data['channel'],
             name=data.get('name', ''),
@@ -1524,7 +1531,7 @@ def api_delete_channel(index):
 @app.route('/api/banks/set', methods=['POST'])
 def api_set_bank():
     try:
-        data = request.json
+        data = _require_json_dict()
         bank = int(data['bank'])
         enabled = bool(data['enabled'])
         if bank not in range(10):
@@ -1558,7 +1565,7 @@ def api_preset_detail(key):
 @app.route('/api/presets/load', methods=['POST'])
 def api_load_preset():
     try:
-        data = request.json
+        data = _require_json_dict()
         channels = get_preset_channels(data['preset'], bank=data.get('bank'))
         conn = get_conn()
         cm = ChannelManager(conn)
@@ -1672,7 +1679,7 @@ def api_live():
 @app.route('/api/search/set', methods=['POST'])
 def api_set_search():
     try:
-        data = request.json
+        data = _require_json_dict()
         setting = data['setting']
         value = data['value']
         conn = get_conn()
@@ -1701,7 +1708,7 @@ def api_set_search():
 @app.route('/api/search/closecall-band', methods=['POST'])
 def api_set_close_call_band():
     try:
-        data = request.json
+        data = _require_json_dict()
         index = int(data['index'])
         enabled = bool(data['enabled'])
         conn = get_conn()
@@ -1715,7 +1722,7 @@ def api_set_close_call_band():
 @app.route('/api/search/service-group', methods=['POST'])
 def api_set_service_group():
     try:
-        data = request.json
+        data = _require_json_dict()
         name = data['name']
         enabled = bool(data['enabled'])
         if name not in SERVICE_GROUPS:
@@ -1733,7 +1740,7 @@ def api_set_service_group():
 @app.route('/api/search/custom-group', methods=['POST'])
 def api_set_custom_group():
     try:
-        data = request.json
+        data = _require_json_dict()
         group = int(data['group'])
         enabled = bool(data['enabled'])
         if group not in range(1, 11):
@@ -1751,7 +1758,7 @@ def api_set_custom_group():
 @app.route('/api/search/range', methods=['POST'])
 def api_set_search_range():
     try:
-        data = request.json
+        data = _require_json_dict()
         sr = CustomSearchRange(
             index=int(data['index']),
             lower_freq=float(data['lower']),
@@ -1768,7 +1775,7 @@ def api_set_search_range():
 @app.route('/api/search/lockout', methods=['POST'])
 def api_add_lockout():
     try:
-        data = request.json
+        data = _require_json_dict()
         freq = float(data['frequency'])
         conn = get_conn()
         srch = SearchManager(conn)
@@ -1781,7 +1788,7 @@ def api_add_lockout():
 @app.route('/api/search/lockout', methods=['DELETE'])
 def api_remove_lockout():
     try:
-        data = request.json
+        data = _require_json_dict()
         freq = float(data['frequency'])
         conn = get_conn()
         srch = SearchManager(conn)
@@ -1820,7 +1827,7 @@ def api_settings():
 @app.route('/api/settings/set', methods=['POST'])
 def api_set_setting():
     try:
-        data = request.json
+        data = _require_json_dict()
         setting = data['setting']
         value = data['value']
         conn = get_conn()
@@ -1898,20 +1905,44 @@ def api_export(format):
                 ],
                 "lockout_frequencies": srch.read_lockout_frequencies(),
             }
-            filepath = tempfile.mktemp(suffix='.json')
+            fd, filepath = tempfile.mkstemp(suffix='.json')
+            os.close(fd)
             export_full_backup(channels, settings_dict, search_dict, filepath)
+            @after_this_request
+            def _cleanup_backup(response):
+                try:
+                    os.unlink(filepath)
+                except Exception:
+                    pass
+                return response
             return send_file(filepath, as_attachment=True,
                            download_name=f'bc125at_backup_{timestamp}.json')
         elif format == 'csv':
             active = [ch for ch in channels if not ch.is_empty]
-            filepath = tempfile.mktemp(suffix='.csv')
+            fd, filepath = tempfile.mkstemp(suffix='.csv')
+            os.close(fd)
             export_channels_csv(active, filepath)
+            @after_this_request
+            def _cleanup_csv(response):
+                try:
+                    os.unlink(filepath)
+                except Exception:
+                    pass
+                return response
             return send_file(filepath, as_attachment=True,
                            download_name=f'bc125at_channels_{timestamp}.csv')
         else:  # json
             active = [ch for ch in channels if not ch.is_empty]
-            filepath = tempfile.mktemp(suffix='.json')
+            fd, filepath = tempfile.mkstemp(suffix='.json')
+            os.close(fd)
             export_channels_json(active, filepath)
+            @after_this_request
+            def _cleanup_json(response):
+                try:
+                    os.unlink(filepath)
+                except Exception:
+                    pass
+                return response
             return send_file(filepath, as_attachment=True,
                            download_name=f'bc125at_channels_{timestamp}.json')
     except Exception as e:
@@ -1931,7 +1962,8 @@ def api_import():
             return jsonify({"error": "Only CSV and JSON files are supported"})
 
         # Save to temp file
-        filepath = tempfile.mktemp(suffix=ext)
+        fd, filepath = tempfile.mkstemp(suffix=ext)
+        os.close(fd)
         with open(filepath, 'w') as f:
             f.write(content)
 
