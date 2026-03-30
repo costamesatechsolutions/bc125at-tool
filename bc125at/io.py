@@ -33,6 +33,8 @@ def import_channels_csv(filepath):
     with open(filepath, "r") as f:
         reader = csv.DictReader(f)
         for row in reader:
+            if not any((value or "").strip() for value in row.values() if isinstance(value, str)):
+                continue
             # Handle boolean fields that may be strings
             for bool_field in ("lockout", "priority"):
                 if bool_field in row:

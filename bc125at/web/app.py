@@ -1823,6 +1823,7 @@ def api_export(format):
 
 @app.route('/api/import', methods=['POST'])
 def api_import():
+    filepath = None
     try:
         file = request.files['file']
         content = file.read().decode('utf-8')
@@ -1882,17 +1883,18 @@ def api_import():
                             srch.unlock_frequency(freq)
                         for freq in search_dict["lockout_frequencies"]:
                             srch.lock_frequency(float(freq))
-                os.unlink(filepath)
                 return jsonify({"ok": True, "message": f"Restored full backup: {len(channels)} channels + settings + search"})
 
         channels = import_auto(filepath)
         conn = get_conn()
         cm = ChannelManager(conn)
         cm.write_channels(channels)
-        os.unlink(filepath)
         return jsonify({"ok": True, "message": f"Imported {len(channels)} channels"})
     except Exception as e:
         return jsonify({"error": str(e)})
+    finally:
+        if filepath and os.path.exists(filepath):
+            os.unlink(filepath)
 
 
 def main():

@@ -143,6 +143,17 @@ def string_to_tone_code(tone_str):
     raise ValueError(f"Unknown tone: {tone_str}")
 
 
+def _coerce_bool(value):
+    """Coerce common boolean-like values safely."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "1", "yes", "on", "y")
+    return False
+
+
 @dataclass
 class Channel:
     """Represents a single scanner channel."""
@@ -259,15 +270,26 @@ class Channel:
             else:
                 freq = None
 
+        modulation = str(d.get("modulation", "AUTO")).upper()
+        if modulation not in MODULATION_MODES:
+            modulation = "AUTO"
+
+        try:
+            delay = int(d.get("delay", 2))
+        except (TypeError, ValueError):
+            delay = 2
+        if delay not in DELAY_VALUES:
+            delay = 2
+
         return cls(
             index=int(d["channel"]),
             name=str(d.get("name", "")),
             frequency=float(freq) if freq else None,
-            modulation=str(d.get("modulation", "AUTO")),
+            modulation=modulation,
             tone_code=int(tone_code or 0),
-            delay=int(d.get("delay", 2)),
-            lockout=bool(d.get("lockout", False)),
-            priority=bool(d.get("priority", False)),
+            delay=delay,
+            lockout=_coerce_bool(d.get("lockout", False)),
+            priority=_coerce_bool(d.get("priority", False)),
         )
 
 
