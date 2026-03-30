@@ -111,6 +111,10 @@ Audio note:
 - If you want scanner audio on your Mac, feed the scanner's headphone/line output into your Mac audio input or a USB audio interface
 - The app can monitor/control scanner state while audio is routed separately
 
+Control note:
+- Current computer control covers safe programming, banks, settings, search/Close Call, backups, and live status monitoring
+- Direct front-panel style remote navigation such as scan/hold/channel-jump/key emulation is not currently implemented in this project
+
 ### Command Line
 
 ```bash
