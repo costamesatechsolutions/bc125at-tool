@@ -207,8 +207,8 @@ class SearchManager:
         if not 1 <= sr.index <= 10:
             raise ValueError("Search range index must be 1-10")
         self.conn.enter_program_mode()
-        lo = f"{int(sr.lower_freq * 10000):08d}"
-        hi = f"{int(sr.upper_freq * 10000):08d}"
+        lo = f"{int(round(sr.lower_freq * 10000)):08d}"
+        hi = f"{int(round(sr.upper_freq * 10000)):08d}"
         resp = self.conn.send_command(f"CSP,{sr.index},{lo},{hi}")
         if resp != "CSP,OK":
             raise ConnectionError(f"Failed to write search range {sr.index}: {resp}")
@@ -220,22 +220,25 @@ class SearchManager:
         """Read all globally locked out frequencies. Returns list of MHz floats."""
         self.conn.enter_program_mode()
         freqs = []
-        while True:
+        max_iterations = 500  # Safety limit to prevent infinite loop
+        for _ in range(max_iterations):
             resp = self.conn.send_command("GLF")
-            if resp and resp.startswith("GLF,"):
-                val = resp.split(",")[1]
-                if val == "-1":
-                    break
+            if not resp or not resp.startswith("GLF,"):
+                break
+            val = resp.split(",")[1].strip()
+            if val == "-1":
+                break
+            try:
                 freq = int(val) / 10000.0
                 freqs.append(freq)
-            else:
+            except ValueError:
                 break
         return freqs
 
     def lock_frequency(self, freq_mhz):
         """Add a frequency to global lockout."""
         self.conn.enter_program_mode()
-        scanner_freq = f"{int(freq_mhz * 10000):08d}"
+        scanner_freq = f"{int(round(freq_mhz * 10000)):08d}"
         resp = self.conn.send_command(f"LOF,{scanner_freq}")
         if resp != "LOF,OK":
             raise ConnectionError(f"Failed to lock frequency {freq_mhz}: {resp}")
@@ -244,7 +247,7 @@ class SearchManager:
     def unlock_frequency(self, freq_mhz):
         """Remove a frequency from global lockout."""
         self.conn.enter_program_mode()
-        scanner_freq = f"{int(freq_mhz * 10000):08d}"
+        scanner_freq = f"{int(round(freq_mhz * 10000)):08d}"
         resp = self.conn.send_command(f"ULF,{scanner_freq}")
         if resp != "ULF,OK":
             raise ConnectionError(f"Failed to unlock frequency {freq_mhz}: {resp}")

@@ -257,6 +257,10 @@ def cmd_settings(args):
         setting = args.setting
         value = args.value
 
+        if value is None:
+            print(f"Error: no value specified. Usage: bc125at settings {setting} <value>")
+            sys.exit(1)
+
         if setting == "volume":
             sm.set_volume(int(value))
         elif setting == "squelch":
@@ -536,6 +540,11 @@ def cmd_import(args):
             start = 451
         else:
             start = (args.bank - 1) * 50 + 1
+        if start + len(channels) - 1 > 500:
+            max_fit = 500 - start + 1
+            print(f"Error: {len(channels)} channels won't fit in bank {args.bank} "
+                  f"(only {max_fit} slots available). Truncating.")
+            channels = channels[:max_fit]
         for i, ch in enumerate(channels):
             ch.index = start + i
         print(f"Remapped to bank {args.bank} (channels {start}-{start + len(channels) - 1})")

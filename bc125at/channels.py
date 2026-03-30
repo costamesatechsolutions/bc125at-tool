@@ -72,7 +72,7 @@ FREQ_RANGES = [
 
 def freq_to_scanner(freq_mhz):
     """Convert MHz frequency to scanner format (freq * 10000, 8 digits)."""
-    return f"{int(freq_mhz * 10000):08d}"
+    return f"{int(round(freq_mhz * 10000)):08d}"
 
 
 def scanner_to_freq(scanner_str):
@@ -251,7 +251,13 @@ class Channel:
 
         freq = d.get("frequency")
         if isinstance(freq, str):
-            freq = float(freq) if freq else None
+            if freq and freq.lower() not in ("none", "null", ""):
+                try:
+                    freq = float(freq)
+                except ValueError:
+                    freq = None
+            else:
+                freq = None
 
         return cls(
             index=int(d["channel"]),
@@ -283,10 +289,21 @@ class ChannelManager:
 
     def write_channel(self, channel):
         """Write a single channel to the scanner."""
+        if not 1 <= channel.index <= NUM_CHANNELS:
+            raise ValueError(f"Channel index must be 1-{NUM_CHANNELS}, got {channel.index}")
         if channel.frequency and not is_valid_frequency(channel.frequency):
             raise ValueError(
                 f"Frequency {channel.frequency} MHz is outside valid ranges"
             )
+        if channel.tone_code not in (TONE_NONE, TONE_SEARCH, TONE_NO_TONE) and \
+           channel.tone_code not in CTCSS_TONES and channel.tone_code not in DCS_CODES:
+            raise ValueError(f"Invalid tone code: {channel.tone_code}")
+        if channel.delay not in DELAY_VALUES:
+            raise ValueError(f"Invalid delay: {channel.delay}. Must be one of {DELAY_VALUES}")
+        if channel.modulation not in MODULATION_MODES:
+            raise ValueError(f"Invalid modulation: {channel.modulation}. Must be one of {MODULATION_MODES}")
+        if len(channel.name) > 16:
+            channel.name = channel.name[:16]
         self.conn.enter_program_mode()
         cmd = channel.to_scanner_command()
         resp = self.conn.send_command(cmd)

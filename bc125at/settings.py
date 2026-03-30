@@ -112,7 +112,19 @@ class SettingsManager:
         return s
 
     def write_all(self, settings):
-        """Write all settings to the scanner."""
+        """Write all settings to the scanner with validation."""
+        # Clamp values to valid ranges to prevent bad data from corrupted backups
+        settings.volume = max(0, min(15, int(settings.volume)))
+        settings.squelch = max(0, min(15, int(settings.squelch)))
+        settings.contrast = max(1, min(15, int(settings.contrast)))
+        settings.priority_mode = max(0, min(3, int(settings.priority_mode)))
+        settings.battery_charge_time = max(1, min(16, int(settings.battery_charge_time)))
+        settings.band_plan = 0 if settings.band_plan not in (0, 1) else settings.band_plan
+        if settings.backlight not in BACKLIGHT_OPTIONS:
+            settings.backlight = "KY"
+        if settings.key_beep_level not in (0, 99):
+            settings.key_beep_level = 0
+
         self.conn.enter_program_mode()
 
         cmds = [

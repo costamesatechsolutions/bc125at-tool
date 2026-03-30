@@ -6,8 +6,10 @@ A clean, modern web interface for the BC125AT scanner programming tool.
 Runs a local Flask server and opens in the browser.
 """
 
+import atexit
 import json
 import os
+import signal
 import sys
 import webbrowser
 import threading
@@ -34,20 +36,42 @@ app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'sta
 _conn = None
 
 def get_conn():
+    """Get or create a scanner connection. Auto-reconnects if disconnected."""
     global _conn
-    if _conn is None or _conn.dev is None:
+    if _conn is not None:
+        # Check if still connected by testing the device
+        try:
+            if _conn.dev is None:
+                raise ConnectionError("Device gone")
+            # Quick test — if this fails, reconnect
+            _conn.dev.is_kernel_driver_active(0)
+        except Exception:
+            _conn = None
+
+    if _conn is None:
         _conn = ScannerConnection()
         _conn.connect()
     return _conn
 
 def safe_disconnect():
+    """Safely disconnect from scanner, exiting program mode first."""
     global _conn
     if _conn:
         try:
             _conn.disconnect()
-        except:
+        except Exception:
             pass
         _conn = None
+
+# Register cleanup handlers
+atexit.register(safe_disconnect)
+
+def _signal_handler(signum, frame):
+    safe_disconnect()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, _signal_handler)
+signal.signal(signal.SIGTERM, _signal_handler)
 
 
 HTML_TEMPLATE = '''<!DOCTYPE html>
@@ -891,21 +915,70 @@ async function loadSettings() {
     const data = await api('settings');
     if (!data) return;
     const c = document.getElementById('settingsContent');
-    const settings = [
-        ['Volume', data.volume + '/15', 'volume'],
-        ['Squelch', data.squelch + '/15', 'squelch'],
-        ['Contrast', data.contrast + '/15', 'contrast'],
-        ['Backlight', data.backlight_display, 'backlight'],
-        ['Priority Mode', data.priority_display, 'priority'],
-        ['Key Beep', data.key_beep_display, 'keybeep'],
-        ['Key Lock', data.key_lock ? 'On' : 'Off', 'keylock'],
-        ['Band Plan', data.band_plan_display, 'bandplan'],
-        ['Weather Alert', data.weather_alert ? 'On' : 'Off', 'wxalert'],
-        ['Battery Timer', data.battery_charge_time + 'h', 'battery'],
-    ];
-    c.innerHTML = settings.map(([label, value]) =>
-        '<div class="setting-row"><div class="setting-label">' + label + '</div><div class="setting-value">' + value + '</div></div>'
-    ).join('');
+    let html = '';
+
+    // Volume slider
+    html += '<div class="setting-row"><div class="setting-label">Volume</div><div class="setting-value">' +
+        '<input type="range" min="0" max="15" value="' + data.volume + '" id="setVolume" ' +
+        'oninput="document.getElementById(\'volVal\').textContent=this.value" ' +
+        'onchange="saveSetting(\'volume\',this.value)">' +
+        ' <span id="volVal">' + data.volume + '</span>/15</div></div>';
+
+    // Squelch slider
+    html += '<div class="setting-row"><div class="setting-label">Squelch</div><div class="setting-value">' +
+        '<input type="range" min="0" max="15" value="' + data.squelch + '" id="setSquelch" ' +
+        'oninput="document.getElementById(\'sqlVal\').textContent=this.value" ' +
+        'onchange="saveSetting(\'squelch\',this.value)">' +
+        ' <span id="sqlVal">' + data.squelch + '</span>/15</div></div>';
+
+    // Contrast slider
+    html += '<div class="setting-row"><div class="setting-label">Contrast</div><div class="setting-value">' +
+        '<input type="range" min="1" max="15" value="' + data.contrast + '" id="setContrast" ' +
+        'oninput="document.getElementById(\'cntVal\').textContent=this.value" ' +
+        'onchange="saveSetting(\'contrast\',this.value)">' +
+        ' <span id="cntVal">' + data.contrast + '</span>/15</div></div>';
+
+    // Backlight dropdown
+    html += '<div class="setting-row"><div class="setting-label">Backlight</div><div class="setting-value">' +
+        '<select onchange="saveSetting(\'backlight\',this.value)" class="inline-edit">' +
+        ['AF','KY','SQ','KS','AO'].map(v => {
+            const labels = {AF:'Always Off',KY:'Keypress',SQ:'Squelch',KS:'Key+Squelch',AO:'Always On'};
+            return '<option value="'+v+'"'+(data.backlight===v?' selected':'')+'>'+labels[v]+'</option>';
+        }).join('') + '</select></div></div>';
+
+    // Priority dropdown
+    html += '<div class="setting-row"><div class="setting-label">Priority Mode</div><div class="setting-value">' +
+        '<select onchange="saveSetting(\'priority\',this.value)" class="inline-edit">' +
+        [{v:0,l:'Off'},{v:1,l:'On'},{v:2,l:'Plus On'},{v:3,l:'Do Not Disturb'}].map(o =>
+            '<option value="'+o.v+'"'+(data.priority_mode===o.v?' selected':'')+'>'+o.l+'</option>'
+        ).join('') + '</select></div></div>';
+
+    // Weather Alert toggle
+    html += '<div class="setting-row"><div class="setting-label">Weather Alert</div><div class="setting-value">' +
+        '<select onchange="saveSetting(\'wxalert\',this.value)" class="inline-edit">' +
+        '<option value="0"'+(data.weather_alert?'':' selected')+'>Off</option>' +
+        '<option value="1"'+(data.weather_alert?' selected':'')+'>On</option>' +
+        '</select></div></div>';
+
+    // Key Beep toggle
+    html += '<div class="setting-row"><div class="setting-label">Key Beep</div><div class="setting-value">' +
+        '<select onchange="saveSetting(\'keybeep\',this.value)" class="inline-edit">' +
+        '<option value="0"'+(data.key_beep_level===0?' selected':'')+'>Auto</option>' +
+        '<option value="99"'+(data.key_beep_level===99?' selected':'')+'>Off</option>' +
+        '</select></div></div>';
+
+    // Read-only info
+    html += '<div class="setting-row"><div class="setting-label">Band Plan</div><div class="setting-value">' + data.band_plan_display + '</div></div>';
+    html += '<div class="setting-row"><div class="setting-label">Battery Timer</div><div class="setting-value">' + data.battery_charge_time + 'h</div></div>';
+
+    c.innerHTML = html;
+}
+
+async function saveSetting(key, value) {
+    const result = await api('settings/set', { method: 'POST', body: { setting: key, value: value } });
+    if (result && !result.error) {
+        toast(key.charAt(0).toUpperCase() + key.slice(1) + ' updated');
+    }
 }
 
 // --- Export ---
@@ -1163,6 +1236,46 @@ def api_settings():
             "weather_alert": s.weather_alert,
             "battery_charge_time": s.battery_charge_time,
         })
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route('/api/settings/set', methods=['POST'])
+def api_set_setting():
+    try:
+        data = request.json
+        setting = data['setting']
+        value = data['value']
+        conn = get_conn()
+        sm = SettingsManager(conn)
+
+        if setting == 'volume':
+            sm.set_volume(int(value))
+        elif setting == 'squelch':
+            sm.set_squelch(int(value))
+        elif setting == 'contrast':
+            sm.set_contrast(int(value))
+        elif setting == 'backlight':
+            sm.set_backlight(str(value).upper())
+        elif setting == 'priority':
+            sm.set_priority(int(value))
+        elif setting == 'wxalert':
+            sm.set_weather_alert(str(value) in ('1', 'true', 'on'))
+        elif setting == 'keybeep':
+            conn.enter_program_mode()
+            # Read current lock state to preserve it
+            resp = conn.send_command("KBP")
+            lock = "0"
+            if resp and "," in resp:
+                parts = resp.split(",")
+                lock = parts[2] if len(parts) > 2 else "0"
+            resp = conn.send_command(f"KBP,{value},{lock}")
+            if resp != "KBP,OK":
+                return jsonify({"error": f"Failed to set key beep: {resp}"})
+        else:
+            return jsonify({"error": f"Unknown setting: {setting}"})
+
+        return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"error": str(e)})
 
