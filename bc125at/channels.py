@@ -337,9 +337,9 @@ class ChannelManager:
         return channels
 
     def write_channels(self, channels, callback=None):
-        """Write multiple channels. Optional callback(index, channel) for progress."""
+        """Write multiple channels. Optional callback(count, channel) for progress."""
         self.conn.enter_program_mode()
-        for ch in channels:
+        for i, ch in enumerate(channels, 1):
             if ch.frequency and not is_valid_frequency(ch.frequency):
                 raise ValueError(
                     f"Channel {ch.index}: frequency {ch.frequency} MHz is outside valid ranges"
@@ -349,7 +349,7 @@ class ChannelManager:
             if resp != "CIN,OK":
                 raise ConnectionError(f"Failed to write channel {ch.index}: {resp}")
             if callback:
-                callback(ch.index, ch)
+                callback(i, ch)
         return True
 
     def read_bank(self, bank_num):
