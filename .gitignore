@@ -8,3 +8,4 @@ build/
 *.json
 !package.json
 .DS_Store
+CLAUDE.md
