@@ -16,7 +16,10 @@ from .connection import ScannerConnection
 from .channels import Channel, ChannelManager, NUM_CHANNELS, CHANNELS_PER_BANK
 from .channels import CTCSS_TONES, DCS_CODES, MODULATION_MODES, DELAY_VALUES
 from .channels import tone_code_to_string, is_valid_frequency, FREQ_RANGES
-from .settings import SettingsManager, ScannerSettings, BACKLIGHT_OPTIONS, PRIORITY_OPTIONS
+from .settings import (
+    SettingsManager, ScannerSettings, BACKLIGHT_OPTIONS,
+    PRIORITY_OPTIONS,
+)
 from .search import SearchManager, CloseCallSettings, SearchSettings, CustomSearchRange
 from .search import CC_MODE_OPTIONS, CC_BANDS, SERVICE_GROUPS
 from .presets import list_presets, get_preset_channels, PRESET_CATALOG
@@ -273,9 +276,17 @@ def cmd_settings(args):
             sm.set_priority(int(value))
         elif setting == "wxalert":
             sm.set_weather_alert(value.lower() in ("1", "on", "true", "yes"))
+        elif setting == "keybeep":
+            sm.set_key_beep(int(value))
+        elif setting == "keylock":
+            sm.set_key_lock(value.lower() in ("1", "on", "true", "yes"))
+        elif setting == "bandplan":
+            sm.set_band_plan(int(value))
+        elif setting == "battery":
+            sm.set_battery_charge_time(int(value))
         else:
             print(f"Unknown setting: {setting}")
-            print("Available: volume, squelch, contrast, backlight, priority, wxalert")
+            print("Available: volume, squelch, contrast, backlight, priority, wxalert, keybeep, keylock, bandplan, battery")
             sys.exit(1)
 
         print(f"Set {setting} = {value}")
@@ -643,7 +654,7 @@ def main():
     # --- settings ---
     p_stg = sub.add_parser("settings", help="Read or modify scanner settings")
     p_stg.add_argument("setting", nargs="?", default="show",
-                        help="Setting name (volume/squelch/contrast/backlight/priority/wxalert) or 'show'")
+                        help="Setting name (volume/squelch/contrast/backlight/priority/wxalert/keybeep/keylock/bandplan/battery) or 'show'")
     p_stg.add_argument("value", nargs="?", help="New value to set")
 
     # --- search ---

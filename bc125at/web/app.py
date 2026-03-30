@@ -25,8 +25,14 @@ from bc125at.connection import ScannerConnection
 from bc125at.channels import Channel, ChannelManager, NUM_CHANNELS, CHANNELS_PER_BANK
 from bc125at.channels import CTCSS_TONES, DCS_CODES, MODULATION_MODES, DELAY_VALUES
 from bc125at.channels import tone_code_to_string, is_valid_frequency, FREQ_RANGES
-from bc125at.settings import SettingsManager, ScannerSettings, BACKLIGHT_OPTIONS, PRIORITY_OPTIONS
-from bc125at.search import SearchManager, CloseCallSettings, CC_MODE_OPTIONS, CC_BANDS, SERVICE_GROUPS
+from bc125at.settings import (
+    SettingsManager, ScannerSettings, BACKLIGHT_OPTIONS,
+    PRIORITY_OPTIONS,
+)
+from bc125at.search import (
+    SearchManager, CloseCallSettings, SearchSettings, CustomSearchRange,
+    CC_MODE_OPTIONS, CC_BANDS, SERVICE_GROUPS,
+)
 from bc125at.presets import list_presets, get_preset_channels, PRESET_CATALOG
 from bc125at.io import export_channels_csv, export_channels_json, export_full_backup
 
@@ -321,6 +327,34 @@ body {
 .setting-row:last-child { border-bottom: none; }
 .setting-label { font-size: 14px; }
 .setting-value { color: var(--accent2); font-weight: 500; }
+.setting-value .inline-edit {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    min-width: 140px;
+}
+.setting-value input.inline-edit {
+    width: 160px;
+}
+.setting-help {
+    color: var(--text2);
+    font-size: 12px;
+    margin-top: 10px;
+}
+.setting-section-title {
+    margin: 18px 0 8px;
+    color: var(--accent2);
+    font-size: 14px;
+    font-weight: 600;
+}
+.stack-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
 /* Modal */
 .modal-overlay {
     display: none;
@@ -449,6 +483,8 @@ body {
             <h2>Quick Stats</h2>
             <div class="info-grid">
                 <div class="info-item"><div class="label">Programmed Channels</div><div class="value" id="statChannels">-</div></div>
+                <div class="info-item"><div class="label">Programmed Banks</div><div class="value" id="statProgBanks">-</div></div>
+                <div class="info-item"><div class="label">Enabled Banks</div><div class="value" id="statEnabledBanks">-</div></div>
                 <div class="info-item"><div class="label">Close Call Mode</div><div class="value" id="statCC">-</div></div>
                 <div class="info-item"><div class="label">Weather Alert</div><div class="value" id="statWX">-</div></div>
                 <div class="info-item"><div class="label">Band Plan</div><div class="value" id="statBand">-</div></div>
@@ -711,16 +747,32 @@ async function loadDashboard() {
     document.getElementById('statWX').textContent = data.settings.weather_alert ? 'On' : 'Off';
     document.getElementById('statBand').textContent = data.settings.band_plan_display;
     document.getElementById('statChannels').textContent = data.programmed_channels;
+    document.getElementById('statProgBanks').textContent = data.programmed_banks;
+    document.getElementById('statEnabledBanks').textContent = data.enabled_banks;
 
     // Banks
     const bg = document.getElementById('bankGrid');
     bg.innerHTML = '';
-    for (const [bank, enabled] of Object.entries(data.banks)) {
+    for (const bank of [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]) {
+        const enabled = Boolean(data.banks[bank]);
+        const count = data.bank_counts && data.bank_counts[bank] !== undefined ? data.bank_counts[bank] : 0;
         const div = document.createElement('div');
         div.className = 'info-item';
-        div.innerHTML = '<div class="label">Bank ' + bank + '</div><div class="value" style="color:' +
-            (enabled ? 'var(--green)' : 'var(--red)') + '">' + (enabled ? 'Enabled' : 'Disabled') + '</div>';
+        div.innerHTML = '<div class="label">Bank ' + bank + '</div>' +
+            '<div class="value" style="color:' + (enabled ? 'var(--green)' : 'var(--red)') + '">' +
+            (enabled ? 'Enabled' : 'Disabled') + '</div>' +
+            '<div style="color:var(--text2);font-size:12px;margin-top:6px;">' + count + ' programmed channel' + (count === 1 ? '' : 's') + '</div>' +
+            '<div style="margin-top:10px;"><button class="btn btn-sm ' + (enabled ? 'btn-danger' : 'btn-success') +
+            '" onclick="setBankEnabled(' + bank + ',' + (!enabled) + ')">' + (enabled ? 'Disable' : 'Enable') + '</button></div>';
         bg.appendChild(div);
+    }
+}
+
+async function setBankEnabled(bank, enabled) {
+    const result = await api('banks/set', { method: 'POST', body: { bank: bank, enabled: enabled } });
+    if (result) {
+        toast('Bank ' + bank + ' ' + (enabled ? 'enabled' : 'disabled'));
+        loadDashboard();
     }
 }
 
@@ -895,26 +947,148 @@ async function loadSearch() {
     const data = await api('search');
     if (!data) return;
     const c = document.getElementById('searchContent');
-    let html = '<div class="setting-row"><div class="setting-label">Search Delay</div><div class="setting-value">' + data.delay + 's</div></div>';
-    html += '<div class="setting-row"><div class="setting-label">CTCSS/DCS Code Search</div><div class="setting-value">' + (data.code_search ? 'On' : 'Off') + '</div></div>';
-    html += '<h3>Close Call</h3>';
-    html += '<div class="setting-row"><div class="setting-label">Mode</div><div class="setting-value">' + data.close_call.mode_display + '</div></div>';
-    html += '<div class="setting-row"><div class="setting-label">Alert Beep</div><div class="setting-value">' + (data.close_call.alert_beep ? 'On' : 'Off') + '</div></div>';
-    html += '<div class="setting-row"><div class="setting-label">Alert Light</div><div class="setting-value">' + (data.close_call.alert_light ? 'On' : 'Off') + '</div></div>';
-    html += '<h3>Close Call Bands</h3>';
+    let html = '';
+
+    function dropdownRow(label, id, options, currentVal) {
+        const opts = options.map(o =>
+            '<option value="' + o.v + '"' + (String(currentVal) === String(o.v) ? ' selected' : '') + '>' + o.l + '</option>'
+        ).join('');
+        return '<div class="setting-row"><div class="setting-label">' + label + '</div><div class="setting-value"><select id="' + id + '" class="inline-edit">' + opts + '</select></div></div>';
+    }
+
+    html += '<div class="setting-section-title">Search</div>';
+    html += dropdownRow('Search Delay', 'searchDelay', data.delay_options.map(v => ({ v: v, l: v + ' sec' })), data.delay);
+    html += dropdownRow('CTCSS/DCS Code Search', 'searchCode', [{ v: 0, l: 'Off' }, { v: 1, l: 'On' }], data.code_search ? 1 : 0);
+
+    html += '<div class="setting-section-title">Close Call</div>';
+    html += dropdownRow('Mode', 'ccMode', Object.entries(data.close_call.mode_options).map(([v, l]) => ({ v: v, l: l })), data.close_call.mode);
+    html += dropdownRow('Alert Beep', 'ccBeep', [{ v: 0, l: 'Off' }, { v: 1, l: 'On' }], data.close_call.alert_beep ? 1 : 0);
+    html += dropdownRow('Alert Light', 'ccLight', [{ v: 0, l: 'Off' }, { v: 1, l: 'On' }], data.close_call.alert_light ? 1 : 0);
+    html += dropdownRow('Temporary Lockout', 'ccLockout', [{ v: 0, l: 'Off' }, { v: 1, l: 'On' }], data.close_call.lockout ? 1 : 0);
+
+    html += '<div class="setting-section-title">Close Call Bands</div>';
     data.close_call.bands.forEach((enabled, i) => {
-        const names = ['VHF Low', 'Civil Air', 'VHF High', 'Military Air', 'UHF'];
-        html += '<div class="setting-row"><div class="setting-label">' + names[i] + '</div><div class="setting-value" style="color:' + (enabled ? 'var(--green)' : 'var(--red)') + '">' + (enabled ? 'On' : 'Off') + '</div></div>';
+        html += dropdownRow(data.close_call.band_labels[i], 'ccBand' + i, [{ v: 0, l: 'Off' }, { v: 1, l: 'On' }], enabled ? 1 : 0);
     });
-    html += '<h3>Service Search Groups</h3>';
-    Object.entries(data.service_groups).forEach(([name, enabled]) => {
-        html += '<div class="setting-row"><div class="setting-label">' + name + '</div><div class="setting-value" style="color:' + (enabled ? 'var(--green)' : 'var(--red)') + '">' + (enabled ? 'On' : 'Off') + '</div></div>';
+
+    html += '<div class="setting-section-title">Service Search Groups</div>';
+    Object.entries(data.service_groups).forEach(([name, enabled], idx) => {
+        html += dropdownRow(name, 'serviceGroup' + idx, [{ v: 0, l: 'Off' }, { v: 1, l: 'On' }], enabled ? 1 : 0);
     });
-    html += '<h3>Custom Search Ranges</h3>';
+
+    html += '<div class="setting-section-title">Custom Search Groups</div>';
+    Object.entries(data.custom_groups).sort((a, b) => Number(a[0]) - Number(b[0])).forEach(([group, enabled]) => {
+        html += dropdownRow('Group ' + group, 'customGroup' + group, [{ v: 0, l: 'Off' }, { v: 1, l: 'On' }], enabled ? 1 : 0);
+    });
+
+    html += '<div class="setting-section-title">Custom Search Ranges</div>';
     data.search_ranges.forEach(r => {
-        html += '<div class="setting-row"><div class="setting-label">Range ' + r.index + '</div><div class="setting-value">' + r.lower.toFixed(4) + ' - ' + r.upper.toFixed(4) + ' MHz</div></div>';
+        html += '<div class="setting-row"><div class="setting-label">Range ' + r.index + '</div><div class="setting-value">' +
+            '<input id="rangeLower' + r.index + '" class="inline-edit" type="number" step="0.0001" value="' + r.lower.toFixed(4) + '">' +
+            ' <input id="rangeUpper' + r.index + '" class="inline-edit" type="number" step="0.0001" value="' + r.upper.toFixed(4) + '">' +
+            ' <button class="btn btn-sm btn-secondary" onclick="saveSearchRange(' + r.index + ')">Save</button></div></div>';
     });
+
+    html += '<div class="setting-section-title">Global Lockout Frequencies</div>';
+    html += '<div class="setting-row"><div class="setting-label">Add Frequency</div><div class="setting-value">' +
+        '<input id="newLockoutFreq" class="inline-edit" type="number" step="0.0001" placeholder="155.2500">' +
+        ' <button class="btn btn-sm btn-secondary" onclick="addLockoutFrequency()">Add</button></div></div>';
+    if (data.lockout_frequencies.length) {
+        data.lockout_frequencies.forEach(freq => {
+            html += '<div class="setting-row"><div class="setting-label">' + freq.toFixed(4) + ' MHz</div><div class="setting-value">' +
+                '<button class="btn btn-sm btn-danger" onclick="removeLockoutFrequency(' + freq + ')">Remove</button></div></div>';
+        });
+    } else {
+        html += '<div class="setting-help">No global lockout frequencies are currently stored.</div>';
+    }
+
     c.innerHTML = html;
+
+    document.getElementById('searchDelay').addEventListener('change', (e) => saveSearchSetting('delay', e.target.value));
+    document.getElementById('searchCode').addEventListener('change', (e) => saveSearchSetting('code_search', e.target.value));
+    document.getElementById('ccMode').addEventListener('change', (e) => saveSearchSetting('cc_mode', e.target.value));
+    document.getElementById('ccBeep').addEventListener('change', (e) => saveSearchSetting('cc_alert_beep', e.target.value));
+    document.getElementById('ccLight').addEventListener('change', (e) => saveSearchSetting('cc_alert_light', e.target.value));
+    document.getElementById('ccLockout').addEventListener('change', (e) => saveSearchSetting('cc_lockout', e.target.value));
+    data.close_call.bands.forEach((enabled, i) => {
+        document.getElementById('ccBand' + i).addEventListener('change', (e) => saveCloseCallBand(i, e.target.value));
+    });
+    Object.entries(data.service_groups).forEach(([name], idx) => {
+        document.getElementById('serviceGroup' + idx).addEventListener('change', (e) => saveServiceGroup(name, e.target.value));
+    });
+    Object.keys(data.custom_groups).forEach(group => {
+        document.getElementById('customGroup' + group).addEventListener('change', (e) => saveCustomGroup(group, e.target.value));
+    });
+}
+
+async function saveSearchSetting(setting, value) {
+    const result = await api('search/set', { method: 'POST', body: { setting: setting, value: value } });
+    if (result) {
+        toast('Search setting updated');
+        loadSearch();
+        loadDashboard();
+    }
+}
+
+async function saveCloseCallBand(index, value) {
+    const result = await api('search/closecall-band', { method: 'POST', body: { index: index, enabled: String(value) === '1' } });
+    if (result) {
+        toast('Close Call band updated');
+        loadSearch();
+        loadDashboard();
+    }
+}
+
+async function saveServiceGroup(name, value) {
+    const result = await api('search/service-group', { method: 'POST', body: { name: name, enabled: String(value) === '1' } });
+    if (result) {
+        toast('Service search group updated');
+        loadSearch();
+    }
+}
+
+async function saveCustomGroup(group, value) {
+    const result = await api('search/custom-group', { method: 'POST', body: { group: Number(group), enabled: String(value) === '1' } });
+    if (result) {
+        toast('Custom search group updated');
+        loadSearch();
+    }
+}
+
+async function saveSearchRange(index) {
+    const lower = document.getElementById('rangeLower' + index).value;
+    const upper = document.getElementById('rangeUpper' + index).value;
+    const result = await api('search/range', { method: 'POST', body: { index: index, lower: lower, upper: upper } });
+    if (result) {
+        toast('Search range ' + index + ' updated');
+        loadSearch();
+    }
+}
+
+async function addLockoutFrequency() {
+    const input = document.getElementById('newLockoutFreq');
+    const frequency = input.value;
+    const result = await api('search/lockout', { method: 'POST', body: { frequency: frequency } });
+    if (result) {
+        toast('Lockout frequency added');
+        input.value = '';
+        loadSearch();
+    }
+}
+
+async function removeLockoutFrequency(frequency) {
+    const result = await fetch('/api/search/lockout', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ frequency: frequency }),
+    });
+    const data = await result.json();
+    if (data.error) {
+        toast(data.error, 'error');
+        return;
+    }
+    toast('Lockout frequency removed');
+    loadSearch();
 }
 
 // --- Settings ---
@@ -967,9 +1141,28 @@ async function loadSettings() {
         {v:0,l:'Auto'},{v:99,l:'Off'}
     ], data.key_beep_level);
 
-    // Read-only info
-    html += '<div class="setting-row"><div class="setting-label">Band Plan</div><div class="setting-value">' + data.band_plan_display + '</div></div>';
-    html += '<div class="setting-row"><div class="setting-label">Battery Timer</div><div class="setting-value">' + data.battery_charge_time + 'h</div></div>';
+    // Key Lock toggle
+    html += dropdown('Key Lock', 'setKeyLock', [
+        {v:0,l:'Off'},{v:1,l:'On'}
+    ], data.key_lock ? 1 : 0);
+
+    // Band Plan dropdown
+    html += dropdown('Band Plan', 'setBandPlan', [
+        {v:0,l:'USA'},{v:1,l:'Canada'}
+    ], data.band_plan);
+
+    // Battery charge timer dropdown
+    html += dropdown('Battery Timer', 'setBatteryTimer', [
+        {v:1,l:'1 hour'},{v:2,l:'2 hours'},{v:3,l:'3 hours'},{v:4,l:'4 hours'},
+        {v:5,l:'5 hours'},{v:6,l:'6 hours'},{v:7,l:'7 hours'},{v:8,l:'8 hours'},
+        {v:9,l:'9 hours'},{v:10,l:'10 hours'},{v:11,l:'11 hours'},{v:12,l:'12 hours'},
+        {v:13,l:'13 hours'},{v:14,l:'14 hours'},{v:15,l:'15 hours'},{v:16,l:'16 hours'}
+    ], data.battery_charge_time);
+
+    // Current values
+    html += '<div class="setting-row"><div class="setting-label">Current Backlight</div><div class="setting-value">' + data.backlight_display + '</div></div>';
+    html += '<div class="setting-row"><div class="setting-label">Current Priority</div><div class="setting-value">' + data.priority_display + '</div></div>';
+    html += '<div class="setting-row"><div class="setting-label">Current Key Beep</div><div class="setting-value">' + data.key_beep_display + '</div></div>';
 
     c.innerHTML = html;
 
@@ -996,12 +1189,29 @@ async function loadSettings() {
     bindSelect('setPriority', 'priority');
     bindSelect('setWxAlert', 'wxalert');
     bindSelect('setKeyBeep', 'keybeep');
+    bindSelect('setKeyLock', 'keylock');
+    bindSelect('setBandPlan', 'bandplan');
+    bindSelect('setBatteryTimer', 'battery');
 }
 
 async function saveSetting(key, value) {
     const result = await api('settings/set', { method: 'POST', body: { setting: key, value: value } });
     if (result && !result.error) {
-        toast(key.charAt(0).toUpperCase() + key.slice(1) + ' updated');
+        const labels = {
+            volume: 'Volume',
+            squelch: 'Squelch',
+            contrast: 'Contrast',
+            backlight: 'Backlight',
+            priority: 'Priority',
+            wxalert: 'Weather alert',
+            keybeep: 'Key beep',
+            keylock: 'Key lock',
+            bandplan: 'Band plan',
+            battery: 'Battery timer',
+        };
+        toast((labels[key] || key) + ' updated');
+        loadDashboard();
+        loadSettings();
     }
 }
 
@@ -1107,16 +1317,8 @@ def api_info():
         srch = SearchManager(conn)
         cc = srch.read_close_call()
 
-        # Quick count: just check first channel of each bank (10 reads instead of 50)
-        programmed_banks = 0
-        for bank_start in [1, 51, 101, 151, 201, 251, 301, 351, 401, 451]:
-            try:
-                ch = cm.read_channel(bank_start)
-                if not ch.is_empty:
-                    programmed_banks += 1
-            except Exception:
-                pass
-        programmed_est = f"{programmed_banks}/10 banks active"
+        summary = cm.get_channel_summary()
+        enabled_banks = sum(1 for enabled in banks.values() if enabled)
 
         return jsonify({
             "model": model,
@@ -1137,8 +1339,11 @@ def api_info():
                 "battery_charge_time": s.battery_charge_time,
             },
             "banks": banks,
+            "bank_counts": summary["bank_counts"],
             "close_call_mode": cc.mode_display,
-            "programmed_channels": programmed_est,
+            "programmed_channels": f"{summary['programmed_channels']}/500",
+            "programmed_banks": f"{summary['programmed_banks']}/10",
+            "enabled_banks": f"{enabled_banks}/10",
         })
     except Exception as e:
         return jsonify({"error": str(e)})
@@ -1191,6 +1396,24 @@ def api_delete_channel(index):
         return jsonify({"error": str(e)})
 
 
+@app.route('/api/banks/set', methods=['POST'])
+def api_set_bank():
+    try:
+        data = request.json
+        bank = int(data['bank'])
+        enabled = bool(data['enabled'])
+        if bank not in range(10):
+            return jsonify({"error": "Bank must be 0-9"})
+        conn = get_conn()
+        cm = ChannelManager(conn)
+        banks = cm.get_bank_status()
+        banks[bank] = enabled
+        cm.set_bank_status(banks)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
 @app.route('/api/presets')
 def api_presets():
     return jsonify(list_presets())
@@ -1228,24 +1451,153 @@ def api_search():
         ss = srch.read_search_settings()
         cc = srch.read_close_call()
         sg = srch.read_service_groups()
+        csg = srch.read_custom_search_groups()
         ranges = srch.read_all_custom_search_ranges()
+        lockout_freqs = srch.read_lockout_frequencies()
         return jsonify({
             "delay": ss.delay,
+            "delay_options": DELAY_VALUES,
             "code_search": ss.code_search,
             "close_call": {
                 "mode": cc.mode,
+                "mode_options": CC_MODE_OPTIONS,
                 "mode_display": cc.mode_display,
                 "alert_beep": cc.alert_beep,
                 "alert_light": cc.alert_light,
                 "bands": cc.bands,
+                "band_labels": CC_BANDS,
                 "lockout": cc.lockout,
             },
             "service_groups": sg,
+            "custom_groups": csg,
             "search_ranges": [
                 {"index": r.index, "lower": r.lower_freq, "upper": r.upper_freq}
                 for r in ranges
             ],
+            "lockout_frequencies": lockout_freqs,
         })
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route('/api/search/set', methods=['POST'])
+def api_set_search():
+    try:
+        data = request.json
+        setting = data['setting']
+        value = data['value']
+        conn = get_conn()
+        srch = SearchManager(conn)
+
+        if setting == 'delay':
+            srch.set_search_delay(int(value))
+        elif setting == 'code_search':
+            srch.set_code_search(str(value) in ('1', 'true', 'on'))
+        elif setting == 'cc_mode':
+            srch.set_close_call_mode(int(value))
+        elif setting == 'cc_alert_beep':
+            srch.set_close_call_alert_beep(str(value) in ('1', 'true', 'on'))
+        elif setting == 'cc_alert_light':
+            srch.set_close_call_alert_light(str(value) in ('1', 'true', 'on'))
+        elif setting == 'cc_lockout':
+            srch.set_close_call_lockout(str(value) in ('1', 'true', 'on'))
+        else:
+            return jsonify({"error": f"Unknown search setting: {setting}"})
+
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route('/api/search/closecall-band', methods=['POST'])
+def api_set_close_call_band():
+    try:
+        data = request.json
+        index = int(data['index'])
+        enabled = bool(data['enabled'])
+        conn = get_conn()
+        srch = SearchManager(conn)
+        srch.set_close_call_band(index, enabled)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route('/api/search/service-group', methods=['POST'])
+def api_set_service_group():
+    try:
+        data = request.json
+        name = data['name']
+        enabled = bool(data['enabled'])
+        if name not in SERVICE_GROUPS:
+            return jsonify({"error": f"Unknown service group: {name}"})
+        conn = get_conn()
+        srch = SearchManager(conn)
+        groups = srch.read_service_groups()
+        groups[name] = enabled
+        srch.write_service_groups(groups)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route('/api/search/custom-group', methods=['POST'])
+def api_set_custom_group():
+    try:
+        data = request.json
+        group = int(data['group'])
+        enabled = bool(data['enabled'])
+        if group not in range(1, 11):
+            return jsonify({"error": "Custom search group must be 1-10"})
+        conn = get_conn()
+        srch = SearchManager(conn)
+        groups = srch.read_custom_search_groups()
+        groups[group] = enabled
+        srch.write_custom_search_groups(groups)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route('/api/search/range', methods=['POST'])
+def api_set_search_range():
+    try:
+        data = request.json
+        sr = CustomSearchRange(
+            index=int(data['index']),
+            lower_freq=float(data['lower']),
+            upper_freq=float(data['upper']),
+        )
+        conn = get_conn()
+        srch = SearchManager(conn)
+        srch.write_custom_search_range(sr)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route('/api/search/lockout', methods=['POST'])
+def api_add_lockout():
+    try:
+        data = request.json
+        freq = float(data['frequency'])
+        conn = get_conn()
+        srch = SearchManager(conn)
+        srch.lock_frequency(freq)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route('/api/search/lockout', methods=['DELETE'])
+def api_remove_lockout():
+    try:
+        data = request.json
+        freq = float(data['frequency'])
+        conn = get_conn()
+        srch = SearchManager(conn)
+        srch.unlock_frequency(freq)
+        return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"error": str(e)})
 
@@ -1298,16 +1650,13 @@ def api_set_setting():
         elif setting == 'wxalert':
             sm.set_weather_alert(str(value) in ('1', 'true', 'on'))
         elif setting == 'keybeep':
-            conn.enter_program_mode()
-            # Read current lock state to preserve it
-            resp = conn.send_command("KBP")
-            lock = "0"
-            if resp and "," in resp:
-                parts = resp.split(",")
-                lock = parts[2] if len(parts) > 2 else "0"
-            resp = conn.send_command(f"KBP,{value},{lock}")
-            if resp != "KBP,OK":
-                return jsonify({"error": f"Failed to set key beep: {resp}"})
+            sm.set_key_beep(int(value))
+        elif setting == 'keylock':
+            sm.set_key_lock(str(value) in ('1', 'true', 'on'))
+        elif setting == 'bandplan':
+            sm.set_band_plan(int(value))
+        elif setting == 'battery':
+            sm.set_battery_charge_time(int(value))
         else:
             return jsonify({"error": f"Unknown setting: {setting}"})
 

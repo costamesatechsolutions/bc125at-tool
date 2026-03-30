@@ -89,6 +89,10 @@ class SearchManager:
 
     def write_close_call(self, cc):
         """Write Close Call settings."""
+        if cc.mode not in CC_MODE_OPTIONS:
+            raise ValueError(f"Invalid Close Call mode. Options: {list(CC_MODE_OPTIONS.keys())}")
+        if len(cc.bands) != len(CC_BANDS):
+            raise ValueError(f"Close Call bands must have {len(CC_BANDS)} entries")
         self.conn.enter_program_mode()
         bands_str = "".join("1" if b else "0" for b in cc.bands)
         cmd = (
@@ -117,6 +121,8 @@ class SearchManager:
 
     def write_search_settings(self, ss):
         """Write search/CC delay and code search settings."""
+        if ss.delay not in DELAY_VALUES:
+            raise ValueError(f"Invalid search delay. Options: {DELAY_VALUES}")
         self.conn.enter_program_mode()
         resp = self.conn.send_command(f"SCO,{ss.delay},{1 if ss.code_search else 0}")
         if resp != "SCO,OK":
@@ -206,6 +212,10 @@ class SearchManager:
         """Write a custom search range."""
         if not 1 <= sr.index <= 10:
             raise ValueError("Search range index must be 1-10")
+        if sr.lower_freq <= 0 or sr.upper_freq <= 0:
+            raise ValueError("Search range frequencies must be positive")
+        if sr.lower_freq >= sr.upper_freq:
+            raise ValueError("Search range lower frequency must be less than upper frequency")
         self.conn.enter_program_mode()
         lo = f"{int(round(sr.lower_freq * 10000)):08d}"
         hi = f"{int(round(sr.upper_freq * 10000)):08d}"
@@ -213,6 +223,43 @@ class SearchManager:
         if resp != "CSP,OK":
             raise ConnectionError(f"Failed to write search range {sr.index}: {resp}")
         return True
+
+    def set_close_call_mode(self, mode):
+        cc = self.read_close_call()
+        cc.mode = int(mode)
+        return self.write_close_call(cc)
+
+    def set_close_call_alert_beep(self, enabled):
+        cc = self.read_close_call()
+        cc.alert_beep = bool(enabled)
+        return self.write_close_call(cc)
+
+    def set_close_call_alert_light(self, enabled):
+        cc = self.read_close_call()
+        cc.alert_light = bool(enabled)
+        return self.write_close_call(cc)
+
+    def set_close_call_band(self, index, enabled):
+        if not 0 <= index < len(CC_BANDS):
+            raise ValueError(f"Close Call band index must be 0-{len(CC_BANDS) - 1}")
+        cc = self.read_close_call()
+        cc.bands[index] = bool(enabled)
+        return self.write_close_call(cc)
+
+    def set_close_call_lockout(self, enabled):
+        cc = self.read_close_call()
+        cc.lockout = bool(enabled)
+        return self.write_close_call(cc)
+
+    def set_search_delay(self, delay):
+        ss = self.read_search_settings()
+        ss.delay = int(delay)
+        return self.write_search_settings(ss)
+
+    def set_code_search(self, enabled):
+        ss = self.read_search_settings()
+        ss.code_search = bool(enabled)
+        return self.write_search_settings(ss)
 
     # --- Global Lockout Frequencies ---
 

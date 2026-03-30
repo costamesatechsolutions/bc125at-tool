@@ -189,3 +189,44 @@ class SettingsManager:
         resp = self.conn.send_command(f"WXS,{1 if enabled else 0}")
         if resp != "WXS,OK":
             raise ConnectionError(f"Failed to set weather alert: {resp}")
+
+    def _read_key_beep_and_lock(self):
+        self.conn.enter_program_mode()
+        resp = self.conn.send_command("KBP")
+        if not resp or not resp.startswith("KBP,"):
+            raise ConnectionError(f"Failed to read key beep/key lock: {resp}")
+        parts = resp.split(",")
+        level = int(parts[1])
+        lock = parts[2] == "1" if len(parts) > 2 else False
+        return level, lock
+
+    def _write_key_beep_and_lock(self, level, locked):
+        resp = self.conn.send_command(f"KBP,{level},{1 if locked else 0}")
+        if resp != "KBP,OK":
+            raise ConnectionError(f"Failed to set key beep/key lock: {resp}")
+
+    def set_key_beep(self, level):
+        if level not in (0, 99):
+            raise ValueError("Key beep must be 0 (Auto) or 99 (Off)")
+        _, locked = self._read_key_beep_and_lock()
+        self._write_key_beep_and_lock(level, locked)
+
+    def set_key_lock(self, locked):
+        level, _ = self._read_key_beep_and_lock()
+        self._write_key_beep_and_lock(level, bool(locked))
+
+    def set_band_plan(self, plan):
+        if plan not in BAND_PLAN_OPTIONS:
+            raise ValueError(f"Invalid band plan. Options: {list(BAND_PLAN_OPTIONS.keys())}")
+        self.conn.enter_program_mode()
+        resp = self.conn.send_command(f"BPL,{plan}")
+        if resp != "BPL,OK":
+            raise ConnectionError(f"Failed to set band plan: {resp}")
+
+    def set_battery_charge_time(self, hours):
+        if not 1 <= hours <= 16:
+            raise ValueError("Battery charge time must be 1-16 hours")
+        self.conn.enter_program_mode()
+        resp = self.conn.send_command(f"BSV,{hours}")
+        if resp != "BSV,OK":
+            raise ConnectionError(f"Failed to set battery charge time: {resp}")

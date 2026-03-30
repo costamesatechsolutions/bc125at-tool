@@ -13,6 +13,7 @@ This tool communicates directly with the scanner over USB, bypassing the macOS s
 ## Features
 
 - **Full Channel Programming** — Read, write, and manage all 500 channels across 10 banks
+- **Bank Management** — View bank enable/disable state, programmed counts, and manage banks from the web UI or CLI
 - **Built-in Frequency Presets** — One-click loading for:
   - IMSA Racing (race control, safety, timing, pit lane)
   - NASCAR (race ops, officials, example team frequencies)
@@ -23,7 +24,7 @@ This tool communicates directly with the scanner over USB, bypassing the macOS s
   - FRS/GMRS (all 22 channels)
   - MURS (all 5 channels)
   - Railroad (AAR road, yard, police, defect detectors)
-- **All Scanner Settings** — Volume, squelch, backlight, contrast, priority, weather alert, key beep, band plan
+- **Safe Global Settings Editing** — Volume, squelch, contrast, backlight, priority mode, weather alert, key beep, key lock, band plan, and battery charge timer
 - **Search & Close Call** — Custom search ranges, service search groups, Close Call configuration, global frequency lockout
 - **CTCSS/DCS Tones** — Full support for all 50 CTCSS tones and 104 DCS codes
 - **Import/Export** — CSV and JSON formats, plus full backup (channels + settings + search config)
@@ -33,7 +34,25 @@ This tool communicates directly with the scanner over USB, bypassing the macOS s
 
 ## Safety
 
-This tool **cannot brick your scanner**. There is no firmware update functionality — only channel and settings programming, which is always reversible. Worst case scenario: you write a bad frequency and just reprogram it, or factory reset from the scanner's own buttons.
+This tool **cannot brick your scanner**. There is no firmware update functionality, bootloader access, or low-level flash writing. It only uses documented channel, bank, search, and settings commands that are reversible from the app, CLI, or the scanner itself.
+
+Safe editable settings currently exposed are:
+- Volume
+- Squelch
+- Contrast
+- Backlight
+- Priority mode
+- Weather alert
+- Key beep
+- Key lock
+- Band plan
+- Battery charge timer
+
+Worst case scenario: you write a bad channel or pick a setting you don't like, then change it back or factory-reset from the scanner's own buttons.
+
+## Disclaimer
+
+This project is provided **as-is**, without warranties of any kind. You are responsible for reviewing changes before writing them to your scanner and for using the software in a lawful and safe manner. Pine Heights Ventures LLC, and Costa Mesa Tech Solutions as a brand of Pine Heights Ventures LLC, are not liable for data loss, missed communications, configuration mistakes, hardware issues, regulatory misuse, or any indirect or consequential damages arising from use of this project.
 
 ## Installation
 
@@ -75,9 +94,16 @@ DYLD_LIBRARY_PATH=/opt/homebrew/lib python3 -m bc125at.web.app
 Opens automatically at `http://localhost:5125`. From here you can:
 - View and edit all channels visually
 - Load presets with one click
-- Adjust scanner settings with sliders and dropdowns
+- Adjust all safe global settings with sliders and dropdowns
+- Manage bank enable/disable state
+- Edit Search and Close Call settings, custom search ranges, and lockout frequencies
 - Export/import channel programming
 - Create full backups
+
+Dashboard stats:
+- `Programmed Channels` is the exact number of non-empty channels out of 500
+- `Programmed Banks` is the exact number of banks containing at least one programmed channel
+- `Enabled Banks` is the scanner's actual bank enable/disable state
 
 ### Command Line
 
@@ -110,6 +136,15 @@ python3 -m bc125at presets load racing-all --bank 1
 python3 -m bc125at settings
 python3 -m bc125at settings volume 10
 python3 -m bc125at settings backlight KY
+python3 -m bc125at settings keybeep 99
+python3 -m bc125at settings keylock 1
+python3 -m bc125at settings bandplan 1
+python3 -m bc125at settings battery 13
+
+# Show/modify bank enable state
+python3 -m bc125at banks
+python3 -m bc125at banks --disable 3 4
+python3 -m bc125at banks --enable 3 4
 
 # Export channels to CSV
 python3 -m bc125at export --format csv
@@ -153,6 +188,11 @@ The BC125AT presents as a USB CDC ACM (Communications Device Class, Abstract Con
 
 This tool bypasses the kernel driver entirely by using `libusb` for direct USB bulk transfers to the scanner's endpoints. All communication uses the Uniden BC125AT serial protocol — ASCII commands terminated by carriage return (`\r`).
 
+## Notes
+
+- The web app now computes dashboard channel and bank counts from the actual channel map rather than estimating from a single channel per bank.
+- The web app and CLI both target the same safe, reversible scanner programming surface. Firmware and other unsafe operations are intentionally out of scope.
+
 ## Contributing
 
 Contributions are welcome! Some areas that would be great to improve:
@@ -170,6 +210,6 @@ A polished native macOS GUI application is available separately on the Mac App S
 
 ## Credits
 
-Built by [Costa Mesa Tech Solutions](https://costamesatechsolutions.com), a Pine Heights Ventures LLC brand.
+Built by [Costa Mesa Tech Solutions](https://costamesatechsolutions.com), a brand of Pine Heights Ventures LLC.
 
 Protocol reference: Uniden BC125AT PC Protocol V1.01

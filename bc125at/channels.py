@@ -336,6 +336,19 @@ class ChannelManager:
                 raise ConnectionError(f"Failed to read channel {i}: {resp}")
         return channels
 
+    def get_channel_summary(self):
+        """Return exact programmed channel and per-bank counts."""
+        channels = self.read_all_channels()
+        programmed = [ch for ch in channels if not ch.is_empty]
+        bank_counts = {bank: 0 for bank in range(NUM_BANKS)}
+        for ch in programmed:
+            bank_counts[ch.bank] += 1
+        return {
+            "programmed_channels": len(programmed),
+            "programmed_banks": sum(1 for count in bank_counts.values() if count > 0),
+            "bank_counts": bank_counts,
+        }
+
     def write_channels(self, channels, callback=None):
         """Write multiple channels. Optional callback(count, channel) for progress."""
         self.conn.enter_program_mode()
