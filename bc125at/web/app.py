@@ -43,14 +43,18 @@ def get_conn():
         try:
             if _conn.dev is None:
                 raise ConnectionError("Device gone")
-            # Quick test — if this fails, reconnect
             _conn.dev.is_kernel_driver_active(0)
         except Exception:
+            try:
+                _conn.disconnect()
+            except Exception:
+                pass
             _conn = None
 
     if _conn is None:
-        _conn = ScannerConnection()
-        _conn.connect()
+        conn = ScannerConnection()
+        conn.connect()
+        _conn = conn
     return _conn
 
 def safe_disconnect():
@@ -684,10 +688,13 @@ async function api(endpoint, opts={}) {
 
 // --- Dashboard ---
 async function loadDashboard() {
+    document.getElementById('connStatus').textContent = 'Loading...';
     const data = await api('info');
     if (!data) {
         document.getElementById('connDot').classList.add('disconnected');
-        document.getElementById('connStatus').textContent = 'Disconnected';
+        document.getElementById('connStatus').textContent = 'Disconnected — check USB';
+        // Auto-retry after 3 seconds
+        setTimeout(loadDashboard, 3000);
         return;
     }
     document.getElementById('connDot').classList.remove('disconnected');
@@ -1074,13 +1081,16 @@ def api_info():
         srch = SearchManager(conn)
         cc = srch.read_close_call()
 
-        # Count programmed channels (sample first few per bank)
-        programmed = 0
-        for i in range(1, NUM_CHANNELS + 1, 10):  # Sample every 10th
-            ch = cm.read_channel(i)
-            if not ch.is_empty:
-                programmed += 1
-        programmed_est = f"~{programmed * 10}" if programmed > 0 else "0"
+        # Quick count: just check first channel of each bank (10 reads instead of 50)
+        programmed_banks = 0
+        for bank_start in [1, 51, 101, 151, 201, 251, 301, 351, 401, 451]:
+            try:
+                ch = cm.read_channel(bank_start)
+                if not ch.is_empty:
+                    programmed_banks += 1
+            except Exception:
+                pass
+        programmed_est = f"{programmed_banks}/10 banks active"
 
         return jsonify({
             "model": model,
