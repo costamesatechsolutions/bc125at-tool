@@ -1,12 +1,12 @@
 # BC125AT Scanner Tool for macOS
 
-**The first native macOS tool for programming the Uniden BC125AT scanner.** No Windows required. No virtual machines. No Parallels. Just plug in your scanner and go.
+**A macOS-compatible tool for programming the Uniden BC125AT scanner without Windows.** No virtual machines. No Parallels. Just plug in your scanner and go.
 
-Works on Apple Silicon (M1/M2/M3/M4) and Intel Macs.
+Built for Apple Silicon and Intel Macs.
 
 ## Why This Exists
 
-Every existing BC125AT programming tool (Uniden's official software, FreeSCAN, BuTel ARC) is Windows-only. If you're on a Mac, you've been out of luck — until now.
+Most well-known BC125AT programming tools (including Uniden's official software, FreeSCAN, and BuTel ARC) are Windows-only. This project focuses on making BC125AT programming work directly on macOS.
 
 This tool communicates directly with the scanner over USB, bypassing the macOS serial driver that doesn't work properly on Apple Silicon. It uses `libusb` for direct USB access, so no kernel extensions or special drivers are needed.
 
