@@ -99,7 +99,7 @@ Opens automatically at `http://localhost:5125`. From here you can:
 - Edit Search and Close Call settings, custom search ranges, and lockout frequencies
 - Monitor current scanner activity live from the dashboard
 - Export/import channel programming
-- Create full backups
+- Create and restore full backups including channels, settings, and search configuration
 
 Dashboard stats:
 - `Programmed Channels` is the exact number of non-empty channels out of 500

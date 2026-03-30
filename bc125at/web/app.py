@@ -623,18 +623,18 @@ body {
         <div class="card">
             <h2>Backup & Export</h2>
             <p style="color:var(--text2);margin-bottom:16px;font-size:14px;">
-                Save your scanner programming to a file for safekeeping or transfer.
+                Save your scanner programming, settings, and search configuration to a file for safekeeping or transfer.
             </p>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 <button class="btn btn-primary" onclick="doExport('json')">Export Channels (JSON)</button>
                 <button class="btn btn-secondary" onclick="doExport('csv')">Export Channels (CSV)</button>
-                <button class="btn btn-success" onclick="doExport('backup')">Full Backup (Channels + Settings)</button>
+                <button class="btn btn-success" onclick="doExport('backup')">Full Backup (Channels + Settings + Search)</button>
             </div>
         </div>
         <div class="card">
             <h2>Import & Restore</h2>
             <p style="color:var(--text2);margin-bottom:16px;font-size:14px;">
-                Load channels from a previously exported file.
+                Load channels from CSV/JSON or restore a full backup JSON file.
             </p>
             <input type="file" id="importFile" accept=".json,.csv" style="display:none;" onchange="doImport(this)">
             <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Import File...</button>
@@ -949,10 +949,28 @@ function editChannel(idx) {
 }
 
 async function saveChannel() {
+    const channelValue = parseInt(document.getElementById('chIndex').value, 10);
+    const frequencyRaw = document.getElementById('chFreq').value.trim();
+    const frequencyValue = parseFloat(frequencyRaw);
+    const nameValue = document.getElementById('chName').value.trim();
+
+    if (!Number.isInteger(channelValue) || channelValue < 1 || channelValue > 500) {
+        toast('Channel must be between 1 and 500', 'error');
+        return;
+    }
+    if (!frequencyRaw || Number.isNaN(frequencyValue)) {
+        toast('Enter a valid frequency in MHz', 'error');
+        return;
+    }
+    if (nameValue.length > 16) {
+        toast('Channel name must be 16 characters or fewer', 'error');
+        return;
+    }
+
     const data = {
-        channel: parseInt(document.getElementById('chIndex').value),
-        frequency: parseFloat(document.getElementById('chFreq').value),
-        name: document.getElementById('chName').value,
+        channel: channelValue,
+        frequency: frequencyValue,
+        name: nameValue,
         modulation: document.getElementById('chMod').value,
         delay: parseInt(document.getElementById('chDelay').value),
         tone_code: parseInt(document.getElementById('chTone').value),
@@ -1335,6 +1353,11 @@ async function doExport(format) {
 async function doImport(input) {
     const file = input.files[0];
     if (!file) return;
+    if (!/\.json$|\.csv$/i.test(file.name)) {
+        document.getElementById('importStatus').innerHTML = '<span style="color:var(--red)">Only CSV and JSON files are supported</span>';
+        input.value = '';
+        return;
+    }
     const formData = new FormData();
     formData.append('file', file);
     document.getElementById('importStatus').innerHTML = '<div class="spinner"></div> Importing...';
@@ -1346,6 +1369,10 @@ async function doImport(input) {
         } else {
             document.getElementById('importStatus').innerHTML = '<span style="color:var(--green)">' + data.message + '</span>';
             toast(data.message);
+            loadDashboard();
+            if (activePanel === 'channels') loadBank(currentBank);
+            if (activePanel === 'search') loadSearch();
+            if (activePanel === 'settings') loadSettings();
         }
     } catch(e) {
         document.getElementById('importStatus').innerHTML = '<span style="color:var(--red)">Import failed</span>';
@@ -1895,9 +1922,13 @@ def api_export(format):
 def api_import():
     filepath = None
     try:
-        file = request.files['file']
+        file = request.files.get('file')
+        if not file or not file.filename:
+            return jsonify({"error": "No file selected"})
         content = file.read().decode('utf-8')
         ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in ('.json', '.csv'):
+            return jsonify({"error": "Only CSV and JSON files are supported"})
 
         # Save to temp file
         filepath = tempfile.mktemp(suffix=ext)
