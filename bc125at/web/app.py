@@ -74,6 +74,33 @@ def safe_disconnect():
         _conn = None
 
 
+def _friendly_connection_error(exc):
+    msg = str(exc)
+    lower = msg.lower()
+
+    if "not found" in lower:
+        return (
+            "Scanner not detected. Make sure the BC125AT is powered on, reconnect the USB cable, "
+            "and try again. If needed, unplug it, power-cycle the scanner, and reconnect."
+        )
+    if "access denied" in lower or "insufficient permissions" in lower:
+        return (
+            "The scanner was found but could not be claimed. Close any other scanner software, "
+            "reconnect the USB cable, and try again."
+        )
+    if "usb write error" in lower or "usb read error" in lower or "timeout" in lower:
+        return (
+            "The scanner connection was interrupted. Release the scanner, reconnect the USB cable, "
+            "and try again. If needed, power-cycle the scanner before reconnecting."
+        )
+    if "program mode" in lower:
+        return (
+            "The scanner did not enter programming mode. Make sure it is not in a menu or direct-entry "
+            "screen, then reconnect and try again."
+        )
+    return msg
+
+
 def safe_exit_program_mode():
     """Return scanner to normal scan/hold mode if we left it in program mode."""
     global _conn
@@ -1850,7 +1877,7 @@ def api_session_start():
         return jsonify({"active": True, "model": model})
     except Exception as e:
         safe_disconnect()
-        return jsonify({"error": str(e)})
+        return jsonify({"error": _friendly_connection_error(e)})
 
 
 @app.route('/api/session/stop', methods=['POST'])

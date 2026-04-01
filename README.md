@@ -316,6 +316,13 @@ This tool bypasses the kernel driver entirely by using `libusb` for direct USB b
 - The web app does not continuously refresh scanner data in the background. This is intentional, because repeated reads can interfere with normal scanning on the BC125AT.
 - The web app and CLI both target the same safe, reversible scanner programming surface. Firmware and other unsafe operations are intentionally out of scope.
 
+## Troubleshooting
+
+- If the scanner is not detected, make sure it is powered on, then reconnect the USB cable and try again.
+- If detection is still flaky, unplug the scanner, power-cycle it, and reconnect before launching the app again.
+- If you see an access denied or insufficient permissions error, close any other scanner software and reconnect the scanner.
+- If the connection times out after a failed attempt, release the scanner in the app, reconnect the USB cable, and try again.
+
 ## Contributing
 
 Contributions are welcome! Some areas that would be great to improve:
