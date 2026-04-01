@@ -9,6 +9,7 @@ import usb.core
 import usb.util
 import time
 import sys
+import threading
 
 UNIDEN_VENDOR_ID = 0x1965
 BC125AT_PRODUCT_ID = 0x0017
@@ -28,6 +29,8 @@ class ScannerConnection:
         self.ep_out = None
         self.timeout = timeout
         self.in_program_mode = False
+        self.claimed_interfaces = []
+        self.command_lock = threading.Lock()
 
     def connect(self):
         """Find and connect to the BC125AT."""
@@ -46,8 +49,16 @@ class ScannerConnection:
                 pass
 
         self.dev.set_configuration()
+        self.claimed_interfaces = []
         cfg = self.dev.get_active_configuration()
         data_iface = cfg[(DATA_INTERFACE, 0)]
+
+        for iface in [0, DATA_INTERFACE]:
+            try:
+                usb.util.claim_interface(self.dev, iface)
+                self.claimed_interfaces.append(iface)
+            except usb.core.USBError:
+                pass
 
         for ep in data_iface:
             if usb.util.endpoint_direction(ep.bEndpointAddress) == usb.util.ENDPOINT_OUT:
@@ -88,6 +99,12 @@ class ScannerConnection:
             except Exception:
                 pass
         if self.dev:
+            for iface in reversed(self.claimed_interfaces):
+                try:
+                    usb.util.release_interface(self.dev, iface)
+                except usb.core.USBError:
+                    pass
+            self.claimed_interfaces = []
             usb.util.dispose_resources(self.dev)
             self.dev = None
 
@@ -114,60 +131,55 @@ class ScannerConnection:
         timeout = timeout or self.timeout
         cmd_bytes = (command + "\r").encode("ascii")
 
-        # Only flush when NOT in program mode (scanning generates display data)
-        if not self.in_program_mode:
-            self._flush_input()
+        with self.command_lock:
+            # Only flush when NOT in program mode (scanning generates display data)
+            if not self.in_program_mode:
+                self._flush_input()
 
-        try:
-            self.ep_out.write(cmd_bytes, timeout=timeout)
-        except usb.core.USBError as e:
-            raise ConnectionError(f"USB write error: {e}")
-
-        # The expected response starts with the command name
-        cmd_prefix = command.split(",")[0]
-
-        # Accumulate data until we have a complete \r-terminated response
-        # that starts with our command prefix.
-        # The scanner sends data in small USB packets (64 bytes max) so a
-        # single response may span multiple reads.
-        accumulated = ""
-        deadline = time.time() + (timeout / 1000.0)
-
-        while time.time() < deadline:
             try:
-                raw = self.ep_in.read(512, timeout=min(500, timeout))
-                accumulated += bytes(raw).decode("ascii", errors="replace")
+                self.ep_out.write(cmd_bytes, timeout=timeout)
             except usb.core.USBError as e:
-                if "timeout" in str(e).lower():
-                    # If we've accumulated something with our prefix, try to parse
-                    if cmd_prefix in accumulated:
-                        break
+                raise ConnectionError(f"USB write error: {e}")
+
+            # The expected response starts with the command name
+            cmd_prefix = command.split(",")[0]
+
+            # Accumulate data until we have a complete \r-terminated response
+            # that starts with our command prefix.
+            accumulated = ""
+            deadline = time.time() + (timeout / 1000.0)
+
+            while time.time() < deadline:
+                try:
+                    raw = self.ep_in.read(512, timeout=min(500, timeout))
+                    accumulated += bytes(raw).decode("ascii", errors="replace")
+                except usb.core.USBError as e:
+                    if "timeout" in str(e).lower():
+                        if cmd_prefix in accumulated:
+                            break
+                        continue
+                    raise ConnectionError(f"USB read error: {e}")
+
+                if cmd_prefix in accumulated and "\r" in accumulated:
+                    break
+
+            for line in accumulated.split("\r"):
+                line = line.strip()
+                if not line:
                     continue
-                raise ConnectionError(f"USB read error: {e}")
+                if line.startswith(cmd_prefix + ",") or line == cmd_prefix:
+                    return line
+                if line == "ERR":
+                    return line
 
-            # Check for complete response: look for cmd_prefix followed by \r
-            if cmd_prefix in accumulated and "\r" in accumulated:
-                break
+            if cmd_prefix in accumulated:
+                idx = accumulated.find(cmd_prefix)
+                end = accumulated.find("\r", idx)
+                if end == -1:
+                    return accumulated[idx:].strip()
+                return accumulated[idx:end].strip()
 
-        # Extract our response from accumulated data
-        for line in accumulated.split("\r"):
-            line = line.strip()
-            if not line:
-                continue
-            if line.startswith(cmd_prefix + ",") or line == cmd_prefix:
-                return line
-            if line == "ERR":
-                return line
-
-        # Fallback: find cmd_prefix anywhere
-        if cmd_prefix in accumulated:
-            idx = accumulated.find(cmd_prefix)
-            end = accumulated.find("\r", idx)
-            if end == -1:
-                return accumulated[idx:].strip()
-            return accumulated[idx:end].strip()
-
-        return accumulated.strip() if accumulated.strip() else None
+            return accumulated.strip() if accumulated.strip() else None
 
     def enter_program_mode(self):
         """Enter program mode (required for most read/write operations)."""

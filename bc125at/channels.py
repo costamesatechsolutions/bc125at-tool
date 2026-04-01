@@ -257,16 +257,16 @@ class Channel:
         if tone_code is None and "tone" in d:
             try:
                 tone_code = string_to_tone_code(str(d["tone"]))
-            except ValueError:
-                tone_code = 0
+            except ValueError as e:
+                raise ValueError(f"Invalid tone value: {d['tone']}") from e
 
         freq = d.get("frequency")
         if isinstance(freq, str):
             if freq and freq.lower() not in ("none", "null", ""):
                 try:
                     freq = float(freq)
-                except ValueError:
-                    freq = None
+                except ValueError as e:
+                    raise ValueError(f"Invalid frequency value: {d['frequency']}") from e
             else:
                 freq = None
 

@@ -34,7 +34,7 @@ from bc125at.search import (
     CC_MODE_OPTIONS, CC_BANDS, SERVICE_GROUPS,
 )
 from bc125at.presets import list_presets, get_preset_channels, PRESET_CATALOG
-from bc125at.io import export_channels_csv, export_channels_json, export_full_backup
+from bc125at.io import export_channels_csv, export_channels_json, export_full_backup, export_bc125at_ss
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 
@@ -121,6 +121,79 @@ def _require_json_dict():
         raise ValueError("Expected JSON object request body")
     return data
 
+
+def _parse_import_bank(raw_value):
+    """Parse optional bank selector from form/json input."""
+    if raw_value in (None, "", "keep", "file"):
+        return None
+    bank = int(raw_value)
+    if bank not in range(10):
+        raise ValueError("Bank must be 0-9")
+    return bank
+
+
+def _apply_import_options(channels, target_bank=None, clear_bank_first=False):
+    """Apply destination bank options before writing channels."""
+    channels = list(channels)
+    if target_bank is None:
+        if clear_bank_first:
+            raise ValueError("Choose a destination bank before using clear-bank import")
+        return channels, None
+
+    start = 451 if target_bank == 0 else (target_bank - 1) * CHANNELS_PER_BANK + 1
+    max_fit = CHANNELS_PER_BANK
+    truncated = None
+    if len(channels) > max_fit:
+        truncated = len(channels) - max_fit
+        channels = channels[:max_fit]
+    for i, ch in enumerate(channels):
+        ch.index = start + i
+    return channels, truncated
+
+
+def _build_import_preview(channels, target_bank=None, clear_bank_first=False, truncated=None, kind="channels"):
+    """Build a compact preview payload for the web UI."""
+    preview_items = []
+    for ch in channels[:12]:
+        preview_items.append({
+            "channel": ch.index,
+            "name": ch.name,
+            "frequency": ch.frequency,
+            "modulation": ch.modulation,
+            "tone": ch.tone_string,
+            "bank": ch.bank,
+        })
+
+    if target_bank is None:
+        destination = "Use channel numbers from import data"
+    else:
+        destination = f"Sequentially load into bank {target_bank}"
+
+    if clear_bank_first and target_bank is not None:
+        destination += " after clearing that bank"
+
+    return {
+        "kind": kind,
+        "count": len(channels),
+        "destination": destination,
+        "truncated": truncated or 0,
+        "preview_items": preview_items,
+    }
+
+
+def _session_active():
+    """Whether the web app currently owns the scanner connection."""
+    return _conn is not None
+
+
+def _require_programming_session():
+    """Require an explicit programming session before scanner operations."""
+    if not _session_active():
+        raise ConnectionError(
+            "Start a programming session first. While active, the app may interrupt normal scanning."
+        )
+    return get_conn()
+
 # Register cleanup handlers
 atexit.register(safe_disconnect)
 
@@ -204,6 +277,38 @@ body {
     box-shadow: 0 0 8px var(--green);
 }
 .connection-dot.disconnected { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.session-banner {
+    background: linear-gradient(135deg, rgba(116, 185, 255, 0.12), rgba(108, 92, 231, 0.12));
+    border: 1px solid rgba(116, 185, 255, 0.25);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.session-banner strong {
+    display: block;
+    margin-bottom: 4px;
+}
+.session-banner p {
+    color: var(--text2);
+    font-size: 13px;
+}
+.nav button.disabled {
+    opacity: 0.45;
+}
+.nav button.disabled:hover {
+    color: var(--text2);
+    background: transparent;
+}
 /* Navigation */
 .nav {
     display: flex;
@@ -368,7 +473,31 @@ body {
     color: var(--text);
     font-size: 14px;
 }
+.form-group textarea {
+    width: 100%;
+    min-height: 140px;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: 'SF Mono', 'Menlo', monospace;
+}
 .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); }
+.check-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    margin-top: 22px;
+    color: var(--text);
+    font-size: 14px;
+}
+.check-row input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 /* Settings */
 .setting-row {
@@ -501,9 +630,19 @@ body {
 <div class="app">
     <div class="header">
         <h1><span>BC125AT</span> Scanner Tool</h1>
-        <div class="connection-badge">
-            <div class="connection-dot" id="connDot"></div>
-            <span id="connStatus">Connecting...</span>
+        <div class="header-actions">
+            <div class="connection-badge">
+                <div class="connection-dot disconnected" id="connDot"></div>
+                <span id="connStatus">Scanner released</span>
+            </div>
+            <button class="btn btn-primary btn-sm" id="sessionBtn" onclick="toggleProgrammingSession()">Start Programming Session</button>
+        </div>
+    </div>
+
+    <div class="session-banner">
+        <div>
+            <strong id="sessionBannerTitle">Programming session inactive</strong>
+            <p id="sessionBannerText">The scanner is currently free to scan normally. Start a programming session before opening channels, settings, search, or import tools.</p>
         </div>
     </div>
 
@@ -536,18 +675,19 @@ body {
         <div class="card">
             <h2>Quick Stats</h2>
             <div class="info-grid">
-                <div class="info-item"><div class="label">Programmed Channels</div><div class="value" id="statChannels">-</div></div>
-                <div class="info-item"><div class="label">Programmed Banks</div><div class="value" id="statProgBanks">-</div></div>
+                <div class="info-item"><div class="label">Programmed Channels</div><div class="value" id="statChannels">Open Channels tab</div></div>
+                <div class="info-item"><div class="label">Programmed Banks</div><div class="value" id="statProgBanks">Open Channels tab</div></div>
                 <div class="info-item"><div class="label">Enabled Banks</div><div class="value" id="statEnabledBanks">-</div></div>
                 <div class="info-item"><div class="label">Close Call Mode</div><div class="value" id="statCC">-</div></div>
                 <div class="info-item"><div class="label">Weather Alert</div><div class="value" id="statWX">-</div></div>
                 <div class="info-item"><div class="label">Band Plan</div><div class="value" id="statBand">-</div></div>
             </div>
+            <div class="setting-help">To avoid disturbing live scanner behavior, the dashboard no longer reads all 500 channels automatically.</div>
         </div>
         <div class="card">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h2 style="margin-bottom:0">Live Monitor</h2>
-                <button class="btn btn-secondary btn-sm" onclick="loadLiveMonitor()">Refresh</button>
+                <h2 style="margin-bottom:0">Status Snapshot</h2>
+                <button class="btn btn-secondary btn-sm" onclick="loadLiveMonitor()">Refresh Snapshot</button>
             </div>
             <div class="info-grid">
                 <div class="info-item"><div class="label">Frequency</div><div class="value" id="liveFreq">-</div></div>
@@ -557,7 +697,7 @@ body {
                 <div class="info-item"><div class="label">Squelch</div><div class="value" id="liveSql">-</div></div>
                 <div class="info-item"><div class="label">Status</div><div class="value" id="liveStatus">-</div></div>
             </div>
-            <div class="setting-help">Use your scanner's headphone or line output into your Mac or audio interface if you want the audio on the computer. USB here is used for control and status, not USB audio.</div>
+            <div class="setting-help">This is a manual snapshot only. Continuous live control/status polling is intentionally disabled because it can interfere with normal scanning.</div>
         </div>
     </div>
 
@@ -637,16 +777,68 @@ body {
                 <button class="btn btn-primary" onclick="doExport('json')">Export Channels (JSON)</button>
                 <button class="btn btn-secondary" onclick="doExport('csv')">Export Channels (CSV)</button>
                 <button class="btn btn-success" onclick="doExport('backup')">Full Backup (Channels + Settings + Search)</button>
+                <button class="btn btn-secondary" onclick="doExport('bc125at_ss')">Export BC125AT Season File</button>
             </div>
         </div>
         <div class="card">
             <h2>Import & Restore</h2>
             <p style="color:var(--text2);margin-bottom:16px;font-size:14px;">
-                Load channels from CSV/JSON or restore a full backup JSON file.
+                Load channels from CSV/JSON, paste channel text directly, restore a full backup JSON file, or import a BC125AT season file.
             </p>
-            <input type="file" id="importFile" accept=".json,.csv" style="display:none;" onchange="doImport(this)">
-            <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Import File...</button>
+            <p style="color:var(--text2);margin-bottom:16px;font-size:13px;line-height:1.5;">
+                Best option: export a sample from this app first, then match that format. The importer also accepts common aliases such as
+                <code>channel_index</code>, <code>alpha_tag</code>, <code>freq</code>, and <code>ctcss_dcs</code>.
+                JSON can be either a top-level list or an object with <code>channels</code>. Race CSV files with columns like
+                <code>Car</code>, <code>Driver</code>, <code>Primary</code>, and <code>Secondary</code> are also supported.
+                Pasted text can also be simple lines like
+                <code>146.520 Simplex</code>.
+            </p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Import Destination</label>
+                    <select id="importBankTarget">
+                        <option value="keep">Use channel numbers from file/text</option>
+                        <option value="1">Load sequentially into Bank 1 (CH 1-50)</option>
+                        <option value="2">Load sequentially into Bank 2 (CH 51-100)</option>
+                        <option value="3">Load sequentially into Bank 3 (CH 101-150)</option>
+                        <option value="4">Load sequentially into Bank 4 (CH 151-200)</option>
+                        <option value="5">Load sequentially into Bank 5 (CH 201-250)</option>
+                        <option value="6">Load sequentially into Bank 6 (CH 251-300)</option>
+                        <option value="7">Load sequentially into Bank 7 (CH 301-350)</option>
+                        <option value="8">Load sequentially into Bank 8 (CH 351-400)</option>
+                        <option value="9">Load sequentially into Bank 9 (CH 401-450)</option>
+                        <option value="0">Load sequentially into Bank 0 (CH 451-500)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <div class="check-row">
+                        <input type="checkbox" id="importClearBank">
+                        Clear destination bank first
+                    </div>
+                </div>
+            </div>
+            <input type="file" id="importFile" accept=".json,.csv,.bc125at_ss" style="display:none;" onchange="previewFileImport(this)">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+                <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Import File...</button>
+                <button class="btn btn-primary" onclick="previewPasteImport()">Preview Pasted Text</button>
+            </div>
+            <textarea id="pasteImportText" rows="8" placeholder="Paste JSON, CSV with a header row, or simple lines like:
+146.520 Simplex
+147.435 Renegade
+449.780 PAPA System"></textarea>
             <div id="importStatus" style="margin-top:12px;"></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="importPreviewModal">
+    <div class="modal" style="max-width:760px;">
+        <h2>Import Preview</h2>
+        <p id="importPreviewSummary" style="color:var(--text2);font-size:13px;margin-bottom:16px;"></p>
+        <div id="importPreviewList" style="max-height:280px;overflow-y:auto;margin-bottom:16px;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('importPreviewModal')">Cancel</button>
+            <button class="btn btn-primary" id="importPreviewConfirmBtn" onclick="confirmImportPreview()">Import Now</button>
         </div>
     </div>
 </div>
@@ -750,13 +942,14 @@ let currentBank = 1;
 let selectedPreset = null;
 let channels = {};
 let activePanel = 'dashboard';
-let liveMonitorTimer = null;
+let pendingImportPreview = null;
+let sessionActive = false;
 
 // --- Navigation ---
 function showPanel(name, button=null) {
-    if (activePanel === 'dashboard' && name !== 'dashboard' && liveMonitorTimer) {
-        clearTimeout(liveMonitorTimer);
-        liveMonitorTimer = null;
+    if (name !== 'dashboard' && !sessionActive) {
+        toast('Start a programming session first', 'error');
+        return;
     }
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
@@ -782,7 +975,122 @@ function toast(msg, type='success') {
 }
 
 // --- Modal ---
-function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+    if (id === 'importPreviewModal') pendingImportPreview = null;
+}
+
+function importRefreshViews(message) {
+    document.getElementById('importStatus').innerHTML = '<span style="color:var(--green)">' + message + '</span>';
+    toast(message);
+    loadDashboard();
+    if (activePanel === 'channels') loadBank(currentBank);
+    if (activePanel === 'search') loadSearch();
+    if (activePanel === 'settings') loadSettings();
+}
+
+function renderImportPreview(preview) {
+    pendingImportPreview = preview;
+    let summary = preview.count + ' ' + preview.kind + ' ready. Destination: ' + preview.destination + '.';
+    if (preview.truncated) {
+        summary += ' ' + preview.truncated + ' channel' + (preview.truncated === 1 ? ' was' : 's were') + ' skipped because a bank only holds 50.';
+    }
+    document.getElementById('importPreviewSummary').textContent = summary;
+
+    let html = '<table class="channel-table"><thead><tr><th>CH</th><th>Name</th><th>Freq</th><th>Mode</th><th>Tone</th><th>Bank</th></tr></thead><tbody>';
+    for (const ch of preview.preview_items) {
+        const freq = ch.frequency == null ? '' : Number(ch.frequency).toFixed(4);
+        html += '<tr>' +
+            '<td>' + ch.channel + '</td>' +
+            '<td>' + (ch.name || '') + '</td>' +
+            '<td>' + freq + '</td>' +
+            '<td>' + (ch.modulation || '') + '</td>' +
+            '<td>' + (ch.tone || '') + '</td>' +
+            '<td>' + ch.bank + '</td>' +
+            '</tr>';
+    }
+    if (preview.count > preview.preview_items.length) {
+        html += '<tr><td colspan="6" style="color:var(--text2);font-style:italic;">Showing first ' + preview.preview_items.length + ' of ' + preview.count + ' channels</td></tr>';
+    }
+    html += '</tbody></table>';
+    document.getElementById('importPreviewList').innerHTML = html;
+    document.getElementById('importPreviewModal').classList.add('active');
+}
+
+function currentImportOptions() {
+    return {
+        bank_target: document.getElementById('importBankTarget').value,
+        clear_bank_first: document.getElementById('importClearBank').checked
+    };
+}
+
+function updateSessionUI(state) {
+    sessionActive = Boolean(state.active);
+    const dot = document.getElementById('connDot');
+    const status = document.getElementById('connStatus');
+    const btn = document.getElementById('sessionBtn');
+    const title = document.getElementById('sessionBannerTitle');
+    const text = document.getElementById('sessionBannerText');
+
+    if (sessionActive) {
+        dot.classList.remove('disconnected');
+        status.textContent = state.model ? (state.model + ' connected for programming') : 'Programming session active';
+        btn.textContent = 'Release Scanner';
+        btn.className = 'btn btn-secondary btn-sm';
+        title.textContent = 'Programming session active';
+        text.textContent = 'The app currently owns the scanner connection. While active, opening tabs and editing data may interrupt normal scanning or leave the radio on hold between requests.';
+    } else {
+        dot.classList.add('disconnected');
+        status.textContent = 'Scanner released';
+        btn.textContent = 'Start Programming Session';
+        btn.className = 'btn btn-primary btn-sm';
+        title.textContent = 'Programming session inactive';
+        text.textContent = 'The scanner is currently free to scan normally. Start a programming session before opening channels, settings, search, or import tools.';
+    }
+
+    document.querySelectorAll('.nav button[data-panel]').forEach(button => {
+        if (button.dataset.panel === 'dashboard') return;
+        button.classList.toggle('disabled', !sessionActive);
+    });
+
+    if (!sessionActive && activePanel !== 'dashboard') {
+        showPanel('dashboard');
+    }
+}
+
+async function refreshSessionState(showToast=false) {
+    try {
+        const resp = await fetch('/api/session');
+        const data = await resp.json();
+        updateSessionUI(data);
+        if (showToast) {
+            toast(sessionActive ? 'Programming session started' : 'Scanner released');
+        }
+    } catch (e) {
+        updateSessionUI({ active: false });
+        if (showToast) toast('Could not read scanner session state', 'error');
+    }
+}
+
+async function toggleProgrammingSession() {
+    try {
+        const resp = await fetch('/api/session/' + (sessionActive ? 'stop' : 'start'), {
+            method: 'POST'
+        });
+        const data = await resp.json();
+        if (data.error) {
+            toast(data.error, 'error');
+            return;
+        }
+        updateSessionUI(data);
+        toast(sessionActive ? 'Programming session started' : 'Scanner released');
+        if (!sessionActive) {
+            loadDashboard();
+        }
+    } catch (e) {
+        toast('Could not change programming session', 'error');
+    }
+}
 
 // --- API Helper ---
 async function api(endpoint, opts={}) {
@@ -803,17 +1111,28 @@ async function api(endpoint, opts={}) {
 
 // --- Dashboard ---
 async function loadDashboard() {
-    document.getElementById('connStatus').textContent = 'Loading...';
-    const data = await api('info');
-    if (!data) {
-        document.getElementById('connDot').classList.add('disconnected');
-        document.getElementById('connStatus').textContent = 'Disconnected — check USB';
-        // Auto-retry after 3 seconds
-        setTimeout(loadDashboard, 3000);
+    if (!sessionActive) {
+        document.getElementById('infoModel').textContent = '-';
+        document.getElementById('infoFirmware').textContent = '-';
+        document.getElementById('infoVolume').textContent = '-';
+        document.getElementById('infoSquelch').textContent = '-';
+        document.getElementById('infoBacklight').textContent = '-';
+        document.getElementById('infoPriority').textContent = '-';
+        document.getElementById('statEnabledBanks').textContent = '-';
+        document.getElementById('statCC').textContent = '-';
+        document.getElementById('statWX').textContent = '-';
+        document.getElementById('statBand').textContent = '-';
+        document.getElementById('liveFreq').textContent = '-';
+        document.getElementById('liveMod').textContent = '-';
+        document.getElementById('liveChannel').textContent = '-';
+        document.getElementById('liveName').textContent = '-';
+        document.getElementById('liveSql').textContent = '-';
+        document.getElementById('liveStatus').textContent = 'Scanner released';
+        document.getElementById('bankGrid').innerHTML = '';
         return;
     }
-    document.getElementById('connDot').classList.remove('disconnected');
-    document.getElementById('connStatus').textContent = data.model + ' v' + data.firmware;
+    const data = await api('info');
+    if (!data) return;
 
     document.getElementById('infoModel').textContent = data.model;
     document.getElementById('infoFirmware').textContent = data.firmware;
@@ -825,8 +1144,6 @@ async function loadDashboard() {
     document.getElementById('statCC').textContent = data.close_call_mode || '-';
     document.getElementById('statWX').textContent = data.settings.weather_alert ? 'On' : 'Off';
     document.getElementById('statBand').textContent = data.settings.band_plan_display;
-    document.getElementById('statChannels').textContent = data.programmed_channels;
-    document.getElementById('statProgBanks').textContent = data.programmed_banks;
     document.getElementById('statEnabledBanks').textContent = data.enabled_banks;
 
     // Banks
@@ -834,20 +1151,17 @@ async function loadDashboard() {
     bg.innerHTML = '';
     for (const bank of [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]) {
         const enabled = Boolean(data.banks[bank]);
-        const count = data.bank_counts && data.bank_counts[bank] !== undefined ? data.bank_counts[bank] : 0;
         const div = document.createElement('div');
         div.className = 'info-item';
         div.innerHTML = '<div class="label">Bank ' + bank + '</div>' +
             '<div class="value" style="color:' + (enabled ? 'var(--green)' : 'var(--red)') + '">' +
             (enabled ? 'Enabled' : 'Disabled') + '</div>' +
-            '<div style="color:var(--text2);font-size:12px;margin-top:6px;">' + count + ' programmed channel' + (count === 1 ? '' : 's') + '</div>' +
+            '<div style="color:var(--text2);font-size:12px;margin-top:6px;">Counts are not auto-read during live use</div>' +
             '<div style="margin-top:10px;"><button class="btn btn-sm ' + (enabled ? 'btn-danger' : 'btn-success') +
             '" onclick="setBankEnabled(' + bank + ',' + (!enabled) + ')">' + (enabled ? 'Disable' : 'Enable') + '</button> ' +
             '<button class="btn btn-sm btn-secondary" onclick="clearBank(' + bank + ')">Clear</button></div>';
         bg.appendChild(div);
     }
-
-    loadLiveMonitor();
 }
 
 async function setBankEnabled(bank, enabled) {
@@ -873,7 +1187,10 @@ function clearCurrentBank() {
 }
 
 async function loadLiveMonitor() {
-    if (activePanel !== 'dashboard') return;
+    if (!sessionActive) {
+        toast('Start a programming session first', 'error');
+        return;
+    }
     const data = await api('live');
     if (!data) return;
     document.getElementById('liveFreq').textContent = data.frequency || '-';
@@ -883,10 +1200,6 @@ async function loadLiveMonitor() {
     document.getElementById('liveSql').textContent = data.squelch_open ? 'Open' : 'Closed';
     document.getElementById('liveStatus').textContent = data.status || '-';
 
-    if (liveMonitorTimer) clearTimeout(liveMonitorTimer);
-    if (activePanel === 'dashboard') {
-        liveMonitorTimer = setTimeout(loadLiveMonitor, 1000);
-    }
 }
 
 // --- Channels ---
@@ -1363,7 +1676,8 @@ async function doExport(format) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = resp.headers.get('Content-Disposition')?.split('filename=')[1] || ('bc125at_export.' + (format === 'csv' ? 'csv' : 'json'));
+        const fallbackExt = format === 'csv' ? 'csv' : (format === 'bc125at_ss' ? 'bc125at_ss' : 'json');
+        a.download = resp.headers.get('Content-Disposition')?.split('filename=')[1] || ('bc125at_export.' + fallbackExt);
         a.click();
         URL.revokeObjectURL(url);
         toast('Export complete!');
@@ -1373,34 +1687,101 @@ async function doExport(format) {
 }
 
 // --- Import ---
-async function doImport(input) {
+async function previewFileImport(input) {
     const file = input.files[0];
     if (!file) return;
-    if (!/\.json$|\.csv$/i.test(file.name)) {
-        document.getElementById('importStatus').innerHTML = '<span style="color:var(--red)">Only CSV and JSON files are supported</span>';
+    if (!/(?:[.]json|[.]csv|[.]bc125at_ss)$/i.test(file.name)) {
+        document.getElementById('importStatus').innerHTML = '<span style="color:var(--red)">Only CSV, JSON, and BC125AT season files are supported</span>';
         input.value = '';
         return;
     }
     const formData = new FormData();
     formData.append('file', file);
-    document.getElementById('importStatus').innerHTML = '<div class="spinner"></div> Importing...';
+    const options = currentImportOptions();
+    formData.append('bank_target', options.bank_target);
+    formData.append('clear_bank_first', options.clear_bank_first ? '1' : '0');
+    document.getElementById('importStatus').innerHTML = '<div class="spinner"></div> Building preview...';
     try {
-        const resp = await fetch('/api/import', { method: 'POST', body: formData });
+        const resp = await fetch('/api/import/preview', { method: 'POST', body: formData });
         const data = await resp.json();
         if (data.error) {
             document.getElementById('importStatus').innerHTML = '<span style="color:var(--red)">' + data.error + '</span>';
         } else {
-            document.getElementById('importStatus').innerHTML = '<span style="color:var(--green)">' + data.message + '</span>';
-            toast(data.message);
-            loadDashboard();
-            if (activePanel === 'channels') loadBank(currentBank);
-            if (activePanel === 'search') loadSearch();
-            if (activePanel === 'settings') loadSettings();
+            document.getElementById('importStatus').innerHTML = '<span style="color:var(--green)">Preview ready. Confirm to write channels.</span>';
+            renderImportPreview({ ...data, source: 'file' });
         }
     } catch(e) {
-        document.getElementById('importStatus').innerHTML = '<span style="color:var(--red)">Import failed</span>';
+        document.getElementById('importStatus').innerHTML = '<span style="color:var(--red)">Preview failed</span>';
     }
-    input.value = '';
+}
+
+async function previewPasteImport() {
+    const text = document.getElementById('pasteImportText').value;
+    if (!text.trim()) {
+        document.getElementById('importStatus').innerHTML = '<span style="color:var(--red)">Paste some import text first</span>';
+        return;
+    }
+    document.getElementById('importStatus').innerHTML = '<div class="spinner"></div> Building preview...';
+    try {
+        const resp = await fetch('/api/import/text/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: text,
+                ...currentImportOptions()
+            })
+        });
+        const data = await resp.json();
+        if (data.error) {
+            document.getElementById('importStatus').innerHTML = '<span style="color:var(--red)">' + data.error + '</span>';
+        } else {
+            document.getElementById('importStatus').innerHTML = '<span style="color:var(--green)">Preview ready. Confirm to write channels.</span>';
+            renderImportPreview({ ...data, source: 'text' });
+        }
+    } catch (e) {
+        document.getElementById('importStatus').innerHTML = '<span style="color:var(--red)">Preview failed</span>';
+    }
+}
+
+async function confirmImportPreview() {
+    if (!pendingImportPreview) return;
+    const confirmBtn = document.getElementById('importPreviewConfirmBtn');
+    confirmBtn.disabled = true;
+    document.getElementById('importStatus').innerHTML = '<div class="spinner"></div> Importing...';
+    try {
+        let resp;
+        if (pendingImportPreview.source === 'file') {
+            const file = document.getElementById('importFile').files[0];
+            if (!file) throw new Error('Select a file again before importing');
+            const formData = new FormData();
+            formData.append('file', file);
+            const options = currentImportOptions();
+            formData.append('bank_target', options.bank_target);
+            formData.append('clear_bank_first', options.clear_bank_first ? '1' : '0');
+            resp = await fetch('/api/import', { method: 'POST', body: formData });
+        } else {
+            resp = await fetch('/api/import/text', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    text: document.getElementById('pasteImportText').value,
+                    ...currentImportOptions()
+                })
+            });
+        }
+        const data = await resp.json();
+        if (data.error) {
+            document.getElementById('importStatus').innerHTML = '<span style="color:var(--red)">' + data.error + '</span>';
+        } else {
+            closeModal('importPreviewModal');
+            document.getElementById('importFile').value = '';
+            importRefreshViews(data.message);
+        }
+    } catch (e) {
+        document.getElementById('importStatus').innerHTML = '<span style="color:var(--red)">Import failed</span>';
+    } finally {
+        confirmBtn.disabled = false;
+    }
 }
 
 // --- Init ---
@@ -1423,7 +1804,7 @@ function initToneSelect() {
 try {
     initToneSelect();
     initBankTabs();
-    loadDashboard();
+    refreshSessionState();
     console.log('BC125AT GUI initialized');
 } catch(e) {
     console.error('Init error:', e);
@@ -1446,10 +1827,42 @@ def index():
     return response
 
 
+@app.route('/api/session')
+def api_session():
+    try:
+        if not _session_active():
+            return jsonify({"active": False})
+        conn = get_conn()
+        model_resp = conn.get_model() or ""
+        model = model_resp.split(",")[1] if "," in model_resp else model_resp
+        return jsonify({"active": True, "model": model})
+    except Exception:
+        safe_disconnect()
+        return jsonify({"active": False})
+
+
+@app.route('/api/session/start', methods=['POST'])
+def api_session_start():
+    try:
+        conn = get_conn()
+        model_resp = conn.get_model() or ""
+        model = model_resp.split(",")[1] if "," in model_resp else model_resp
+        return jsonify({"active": True, "model": model})
+    except Exception as e:
+        safe_disconnect()
+        return jsonify({"error": str(e)})
+
+
+@app.route('/api/session/stop', methods=['POST'])
+def api_session_stop():
+    safe_disconnect()
+    return jsonify({"active": False})
+
+
 @app.route('/api/info')
 def api_info():
     try:
-        conn = get_conn()
+        conn = _require_programming_session()
         model_resp = conn.get_model() or ""
         ver_resp = conn.get_version() or ""
         model = model_resp.split(",")[1] if "," in model_resp else model_resp
@@ -1465,7 +1878,6 @@ def api_info():
         srch = SearchManager(conn)
         cc = srch.read_close_call()
 
-        summary = cm.get_channel_summary()
         enabled_banks = sum(1 for enabled in banks.values() if enabled)
 
         return jsonify({
@@ -1487,10 +1899,7 @@ def api_info():
                 "battery_charge_time": s.battery_charge_time,
             },
             "banks": banks,
-            "bank_counts": summary["bank_counts"],
             "close_call_mode": cc.mode_display,
-            "programmed_channels": f"{summary['programmed_channels']}/500",
-            "programmed_banks": f"{summary['programmed_banks']}/10",
             "enabled_banks": f"{enabled_banks}/10",
         })
     except Exception as e:
@@ -1500,7 +1909,7 @@ def api_info():
 @app.route('/api/channels/bank/<int:bank>')
 def api_channels_bank(bank):
     try:
-        conn = get_conn()
+        conn = _require_programming_session()
         cm = ChannelManager(conn)
         channels = cm.read_bank(bank)
         return jsonify({
@@ -1525,7 +1934,7 @@ def api_set_channel():
             lockout=data.get('lockout', False),
             priority=data.get('priority', False),
         )
-        conn = get_conn()
+        conn = _require_programming_session()
         cm = ChannelManager(conn)
         cm.write_channel(ch)
         return jsonify({"ok": True})
@@ -1536,7 +1945,7 @@ def api_set_channel():
 @app.route('/api/channels/delete/<int:index>', methods=['POST'])
 def api_delete_channel(index):
     try:
-        conn = get_conn()
+        conn = _require_programming_session()
         cm = ChannelManager(conn)
         cm.delete_channel(index)
         return jsonify({"ok": True})
@@ -1552,7 +1961,7 @@ def api_set_bank():
         enabled = bool(data['enabled'])
         if bank not in range(10):
             return jsonify({"error": "Bank must be 0-9"})
-        conn = get_conn()
+        conn = _require_programming_session()
         cm = ChannelManager(conn)
         banks = cm.get_bank_status()
         banks[bank] = enabled
@@ -1569,7 +1978,7 @@ def api_clear_bank():
         bank = int(data['bank'])
         if bank not in range(10):
             return jsonify({"error": "Bank must be 0-9"})
-        conn = get_conn()
+        conn = _require_programming_session()
         cm = ChannelManager(conn)
         cm.clear_bank(bank)
         return jsonify({"ok": True})
@@ -1598,7 +2007,7 @@ def api_load_preset():
     try:
         data = _require_json_dict()
         channels = get_preset_channels(data['preset'], bank=data.get('bank'))
-        conn = get_conn()
+        conn = _require_programming_session()
         cm = ChannelManager(conn)
         cm.write_channels(channels)
         return jsonify({"ok": True, "message": f"Loaded {len(channels)} channels"})
@@ -1609,7 +2018,7 @@ def api_load_preset():
 @app.route('/api/search')
 def api_search():
     try:
-        conn = get_conn()
+        conn = _require_programming_session()
         srch = SearchManager(conn)
         ss = srch.read_search_settings()
         cc = srch.read_close_call()
@@ -1646,7 +2055,7 @@ def api_search():
 @app.route('/api/live')
 def api_live():
     try:
-        conn = get_conn()
+        conn = _require_programming_session()
         status_resp = conn.get_status() or ""
         live_resp = conn.get_live_info() or ""
         parsed_status = _parse_status_response(status_resp)
@@ -1713,7 +2122,7 @@ def api_set_search():
         data = _require_json_dict()
         setting = data['setting']
         value = data['value']
-        conn = get_conn()
+        conn = _require_programming_session()
         srch = SearchManager(conn)
 
         if setting == 'delay':
@@ -1742,7 +2151,7 @@ def api_set_close_call_band():
         data = _require_json_dict()
         index = int(data['index'])
         enabled = bool(data['enabled'])
-        conn = get_conn()
+        conn = _require_programming_session()
         srch = SearchManager(conn)
         srch.set_close_call_band(index, enabled)
         return jsonify({"ok": True})
@@ -1758,7 +2167,7 @@ def api_set_service_group():
         enabled = bool(data['enabled'])
         if name not in SERVICE_GROUPS:
             return jsonify({"error": f"Unknown service group: {name}"})
-        conn = get_conn()
+        conn = _require_programming_session()
         srch = SearchManager(conn)
         groups = srch.read_service_groups()
         groups[name] = enabled
@@ -1776,7 +2185,7 @@ def api_set_custom_group():
         enabled = bool(data['enabled'])
         if group not in range(1, 11):
             return jsonify({"error": "Custom search group must be 1-10"})
-        conn = get_conn()
+        conn = _require_programming_session()
         srch = SearchManager(conn)
         groups = srch.read_custom_search_groups()
         groups[group] = enabled
@@ -1795,7 +2204,7 @@ def api_set_search_range():
             lower_freq=float(data['lower']),
             upper_freq=float(data['upper']),
         )
-        conn = get_conn()
+        conn = _require_programming_session()
         srch = SearchManager(conn)
         srch.write_custom_search_range(sr)
         return jsonify({"ok": True})
@@ -1808,7 +2217,7 @@ def api_add_lockout():
     try:
         data = _require_json_dict()
         freq = float(data['frequency'])
-        conn = get_conn()
+        conn = _require_programming_session()
         srch = SearchManager(conn)
         srch.lock_frequency(freq)
         return jsonify({"ok": True})
@@ -1821,7 +2230,7 @@ def api_remove_lockout():
     try:
         data = _require_json_dict()
         freq = float(data['frequency'])
-        conn = get_conn()
+        conn = _require_programming_session()
         srch = SearchManager(conn)
         srch.unlock_frequency(freq)
         return jsonify({"ok": True})
@@ -1832,7 +2241,7 @@ def api_remove_lockout():
 @app.route('/api/settings')
 def api_settings():
     try:
-        conn = get_conn()
+        conn = _require_programming_session()
         sm = SettingsManager(conn)
         s = sm.read_all()
         return jsonify({
@@ -1861,7 +2270,7 @@ def api_set_setting():
         data = _require_json_dict()
         setting = data['setting']
         value = data['value']
-        conn = get_conn()
+        conn = _require_programming_session()
         sm = SettingsManager(conn)
 
         if setting == 'volume':
@@ -1895,7 +2304,7 @@ def api_set_setting():
 @app.route('/api/export/<format>')
 def api_export(format):
     try:
-        conn = get_conn()
+        conn = _require_programming_session()
         cm = ChannelManager(conn)
         channels = cm.read_all_channels()
 
@@ -1904,6 +2313,7 @@ def api_export(format):
         if format == 'backup':
             sm = SettingsManager(conn)
             s = sm.read_all()
+            bank_status = cm.get_bank_status()
             settings_dict = {
                 "backlight": s.backlight, "battery_charge_time": s.battery_charge_time,
                 "band_plan": s.band_plan, "key_beep_level": s.key_beep_level,
@@ -1938,7 +2348,7 @@ def api_export(format):
             }
             fd, filepath = tempfile.mkstemp(suffix='.json')
             os.close(fd)
-            export_full_backup(channels, settings_dict, search_dict, filepath)
+            export_full_backup(channels, settings_dict, search_dict, bank_status, filepath)
             @after_this_request
             def _cleanup_backup(response):
                 try:
@@ -1948,6 +2358,54 @@ def api_export(format):
                 return response
             return send_file(filepath, as_attachment=True,
                            download_name=f'bc125at_backup_{timestamp}.json')
+        elif format == 'bc125at_ss':
+            sm = SettingsManager(conn)
+            s = sm.read_all()
+            bank_status = cm.get_bank_status()
+            settings_dict = {
+                "backlight": s.backlight, "battery_charge_time": s.battery_charge_time,
+                "band_plan": s.band_plan, "key_beep_level": s.key_beep_level,
+                "key_lock": s.key_lock, "priority_mode": s.priority_mode,
+                "contrast": s.contrast, "volume": s.volume,
+                "squelch": s.squelch, "weather_alert": s.weather_alert,
+            }
+            srch = SearchManager(conn)
+            ss = srch.read_search_settings()
+            cc = srch.read_close_call()
+            search_dict = {
+                "delay": ss.delay,
+                "code_search": ss.code_search,
+                "close_call": {
+                    "mode": cc.mode,
+                    "alert_beep": cc.alert_beep,
+                    "alert_light": cc.alert_light,
+                    "bands": cc.bands,
+                    "lockout": cc.lockout,
+                },
+                "service_groups": srch.read_service_groups(),
+                "custom_groups": srch.read_custom_search_groups(),
+                "search_ranges": [
+                    {
+                        "index": r.index,
+                        "lower_freq": r.lower_freq,
+                        "upper_freq": r.upper_freq,
+                    }
+                    for r in srch.read_all_custom_search_ranges()
+                ],
+                "lockout_frequencies": srch.read_lockout_frequencies(),
+            }
+            fd, filepath = tempfile.mkstemp(suffix='.bc125at_ss')
+            os.close(fd)
+            export_bc125at_ss(channels, settings_dict, search_dict, bank_status, filepath)
+            @after_this_request
+            def _cleanup_bc125at(response):
+                try:
+                    os.unlink(filepath)
+                except Exception:
+                    pass
+                return response
+            return send_file(filepath, as_attachment=True,
+                           download_name=f'bc125at_profile_{timestamp}.bc125at_ss')
         elif format == 'csv':
             active = [ch for ch in channels if not ch.is_empty]
             fd, filepath = tempfile.mkstemp(suffix='.csv')
@@ -1980,6 +2438,73 @@ def api_export(format):
         return jsonify({"error": str(e)})
 
 
+@app.route('/api/import/preview', methods=['POST'])
+def api_import_preview():
+    filepath = None
+    try:
+        file = request.files.get('file')
+        if not file or not file.filename:
+            return jsonify({"error": "No file selected"})
+        content = file.read().decode('utf-8')
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in ('.json', '.csv', '.bc125at_ss'):
+            return jsonify({"error": "Only CSV, JSON, and BC125AT season files are supported"})
+
+        fd, filepath = tempfile.mkstemp(suffix=ext)
+        os.close(fd)
+        with open(filepath, 'w') as f:
+            f.write(content)
+
+        from bc125at.io import import_auto, import_full_backup, import_bc125at_ss
+
+        target_bank = _parse_import_bank(request.form.get('bank_target'))
+        clear_bank_first = request.form.get('clear_bank_first') in ('1', 'true', 'True', 'yes', 'on')
+
+        if ext == '.bc125at_ss':
+            if target_bank is not None or clear_bank_first:
+                return jsonify({"error": "BC125AT season files use their own bank layout and do not support destination remapping"})
+            channels, settings_dict, search_dict, bank_status = import_bc125at_ss(filepath)
+            preview = _build_import_preview(channels, kind="season channels")
+            preview["season_file"] = {
+                "settings": True,
+                "search": True,
+                "banks": True,
+            }
+            return jsonify(preview)
+
+        if ext == '.json':
+            data = json.loads(content)
+            if isinstance(data, dict) and data.get('format') == 'bc125at-tool-backup':
+                if target_bank is not None or clear_bank_first:
+                    return jsonify({"error": "Full backup restore does not support destination bank remapping"})
+                channels, settings_dict, search_dict, bank_status = import_full_backup(filepath)
+                preview = _build_import_preview(channels, kind="backup channels")
+                preview["backup"] = {
+                    "settings": bool(settings_dict),
+                    "search": bool(search_dict),
+                    "banks": bool(bank_status),
+                }
+                return jsonify(preview)
+
+        channels = import_auto(filepath)
+        channels, truncated = _apply_import_options(
+            channels,
+            target_bank=target_bank,
+            clear_bank_first=clear_bank_first,
+        )
+        return jsonify(_build_import_preview(
+            channels,
+            target_bank=target_bank,
+            clear_bank_first=clear_bank_first,
+            truncated=truncated,
+        ))
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    finally:
+        if filepath and os.path.exists(filepath):
+            os.unlink(filepath)
+
+
 @app.route('/api/import', methods=['POST'])
 def api_import():
     filepath = None
@@ -1989,8 +2514,8 @@ def api_import():
             return jsonify({"error": "No file selected"})
         content = file.read().decode('utf-8')
         ext = os.path.splitext(file.filename)[1].lower()
-        if ext not in ('.json', '.csv'):
-            return jsonify({"error": "Only CSV and JSON files are supported"})
+        if ext not in ('.json', '.csv', '.bc125at_ss'):
+            return jsonify({"error": "Only CSV, JSON, and BC125AT season files are supported"})
 
         # Save to temp file
         fd, filepath = tempfile.mkstemp(suffix=ext)
@@ -1998,15 +2523,59 @@ def api_import():
         with open(filepath, 'w') as f:
             f.write(content)
 
-        from bc125at.io import import_auto, import_full_backup
+        from bc125at.io import import_auto, import_full_backup, import_bc125at_ss
+
+        target_bank = _parse_import_bank(request.form.get('bank_target'))
+        clear_bank_first = request.form.get('clear_bank_first') in ('1', 'true', 'True', 'yes', 'on')
+
+        if ext == '.bc125at_ss':
+            if target_bank is not None or clear_bank_first:
+                return jsonify({"error": "BC125AT season files use their own bank layout and do not support destination remapping"})
+            channels, settings_dict, search_dict, bank_status = import_bc125at_ss(filepath)
+            conn = _require_programming_session()
+            cm = ChannelManager(conn)
+            cm.write_channels(channels)
+            cm.set_bank_status(bank_status)
+
+            sm = SettingsManager(conn)
+            sm.write_all(ScannerSettings(**settings_dict))
+
+            srch = SearchManager(conn)
+            ss = SearchSettings(
+                delay=search_dict.get("delay", 2),
+                code_search=search_dict.get("code_search", False),
+            )
+            srch.write_search_settings(ss)
+            cc_data = search_dict.get("close_call", {})
+            cc = CloseCallSettings(
+                mode=cc_data.get("mode", 0),
+                alert_beep=cc_data.get("alert_beep", False),
+                alert_light=cc_data.get("alert_light", False),
+                bands=cc_data.get("bands", [True] * 5),
+                lockout=cc_data.get("lockout", False),
+            )
+            srch.write_close_call(cc)
+            srch.write_service_groups(search_dict.get("service_groups", {}))
+            srch.write_custom_search_groups(search_dict.get("custom_groups", {}))
+            for range_data in search_dict.get("search_ranges", []):
+                srch.write_custom_search_range(CustomSearchRange(
+                    index=int(range_data["index"]),
+                    lower_freq=float(range_data["lower_freq"]),
+                    upper_freq=float(range_data["upper_freq"]),
+                ))
+            return jsonify({"ok": True, "message": f"Restored BC125AT season file: {len(channels)} channels + settings + search + banks"})
 
         if ext == '.json':
             data = json.loads(content)
-            if data.get('format') == 'bc125at-tool-backup':
-                channels, settings_dict, search_dict = import_full_backup(filepath)
-                conn = get_conn()
+            if isinstance(data, dict) and data.get('format') == 'bc125at-tool-backup':
+                if target_bank is not None or clear_bank_first:
+                    return jsonify({"error": "Full backup restore does not support destination bank remapping"})
+                channels, settings_dict, search_dict, bank_status = import_full_backup(filepath)
+                conn = _require_programming_session()
                 cm = ChannelManager(conn)
                 cm.write_channels(channels)
+                if bank_status:
+                    cm.set_bank_status(bank_status)
                 if settings_dict:
                     sm = SettingsManager(conn)
                     s = ScannerSettings(**settings_dict)
@@ -2050,15 +2619,88 @@ def api_import():
                 return jsonify({"ok": True, "message": f"Restored full backup: {len(channels)} channels + settings + search"})
 
         channels = import_auto(filepath)
-        conn = get_conn()
+        channels, truncated = _apply_import_options(
+            channels,
+            target_bank=target_bank,
+            clear_bank_first=clear_bank_first,
+        )
+        conn = _require_programming_session()
         cm = ChannelManager(conn)
+        if clear_bank_first and target_bank is not None:
+            cm.clear_bank(target_bank)
         cm.write_channels(channels)
-        return jsonify({"ok": True, "message": f"Imported {len(channels)} channels"})
+        message = f"Imported {len(channels)} channels"
+        if target_bank is not None:
+            message += f" into bank {target_bank}"
+        if truncated:
+            message += f" ({truncated} skipped because a bank only holds 50 channels)"
+        return jsonify({"ok": True, "message": message})
     except Exception as e:
         return jsonify({"error": str(e)})
     finally:
         if filepath and os.path.exists(filepath):
             os.unlink(filepath)
+
+
+@app.route('/api/import/text/preview', methods=['POST'])
+def api_import_text_preview():
+    try:
+        data = _require_json_dict()
+        text = str(data.get('text', ''))
+        target_bank = _parse_import_bank(data.get('bank_target'))
+        clear_bank_first = bool(data.get('clear_bank_first', False))
+
+        from bc125at.io import import_channels_text
+
+        channels = import_channels_text(text)
+        channels, truncated = _apply_import_options(
+            channels,
+            target_bank=target_bank,
+            clear_bank_first=clear_bank_first,
+        )
+
+        return jsonify(_build_import_preview(
+            channels,
+            target_bank=target_bank,
+            clear_bank_first=clear_bank_first,
+            truncated=truncated,
+            kind="pasted channels",
+        ))
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route('/api/import/text', methods=['POST'])
+def api_import_text():
+    try:
+        data = _require_json_dict()
+        text = str(data.get('text', ''))
+        target_bank = _parse_import_bank(data.get('bank_target'))
+        clear_bank_first = bool(data.get('clear_bank_first', False))
+
+        from bc125at.io import import_channels_text
+
+        channels = import_channels_text(text)
+        channels, truncated = _apply_import_options(
+            channels,
+            target_bank=target_bank,
+            clear_bank_first=clear_bank_first,
+        )
+
+        conn = _require_programming_session()
+        cm = ChannelManager(conn)
+        if clear_bank_first and target_bank is not None:
+            cm.clear_bank(target_bank)
+        cm.write_channels(channels)
+
+        message = f"Imported {len(channels)} pasted channels"
+        if target_bank is not None:
+            message += f" into bank {target_bank}"
+        if truncated:
+            message += f" ({truncated} skipped because a bank only holds 50 channels)"
+        return jsonify({"ok": True, "message": message})
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 
 def main():

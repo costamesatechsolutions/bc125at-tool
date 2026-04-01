@@ -13,8 +13,7 @@ This tool communicates directly with the scanner over USB, bypassing the macOS s
 ## Features
 
 - **Full Channel Programming** — Read, write, and manage all 500 channels across 10 banks
-- **Bank Management** — View bank enable/disable state, programmed counts, and manage banks from the web UI or CLI
-- **Bank Management** — View bank enable/disable state, programmed counts, clear banks, and manage banks from the web UI or CLI
+- **Bank Management** — View bank enable/disable state, clear banks, and manage banks from the web UI or CLI
 - **Built-in Frequency Presets** — One-click loading for:
   - IMSA Racing (race control, safety, timing, pit lane)
   - NASCAR (race ops, officials, example team frequencies)
@@ -28,10 +27,10 @@ This tool communicates directly with the scanner over USB, bypassing the macOS s
 - **Safe Global Settings Editing** — Volume, squelch, contrast, backlight, priority mode, weather alert, key beep, key lock, band plan, and battery charge timer
 - **Search & Close Call** — Custom search ranges, service search groups, Close Call configuration, global frequency lockout
 - **CTCSS/DCS Tones** — Full support for all 50 CTCSS tones and 104 DCS codes
-- **Import/Export** — CSV and JSON formats, plus full backup (channels + settings + search config)
+- **Import/Export** — CSV, JSON, BC125AT season files, and full backup restore/export
 - **Web GUI** — Clean, modern browser-based interface
 - **CLI** — Full command-line interface for power users and scripting
-- **Live Monitor** — Watch what the scanner is receiving in real-time from the web UI or CLI
+- **Programming Session Workflow** — Explicitly start/release scanner control so the app does not interfere with normal scanning by default
 
 ## Safety
 
@@ -69,9 +68,9 @@ This project is provided **as-is**, without warranties of any kind. You are resp
    brew install libusb
    ```
 
-3. **Python packages**:
-   ```bash
-   pip3 install pyusb flask
+3. **Python**:
+    ```bash
+   brew install python
    ```
 
 ### Install the tool
@@ -79,17 +78,24 @@ This project is provided **as-is**, without warranties of any kind. You are resp
 ```bash
 git clone https://github.com/costamesatechsolutions/bc125at-tool.git
 cd bc125at-tool
-pip3 install -e .
+/opt/homebrew/bin/python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[gui]"
 ```
 
 ## Usage
 
 ### Web GUI (recommended)
 
-Launch the browser-based interface:
+Start a programming session only when you want the app to take control of the scanner for editing, import/export, or settings work. When the session is released, the scanner is left free to scan normally.
+
+Launch the browser-based interface from the repo root:
 
 ```bash
-DYLD_LIBRARY_PATH=/opt/homebrew/lib python3 -m bc125at.web.app
+cd "/Users/james/Documents/Claude Code/bc125at-tool"
+source .venv/bin/activate
+DYLD_LIBRARY_PATH=/opt/homebrew/lib python -m bc125at.web.app
 ```
 
 Opens automatically at `http://localhost:5125`. From here you can:
@@ -99,27 +105,27 @@ Opens automatically at `http://localhost:5125`. From here you can:
 - Manage bank enable/disable state
 - Clear a bank before repurposing it
 - Edit Search and Close Call settings, custom search ranges, and lockout frequencies
-- Monitor current scanner activity live from the dashboard
+- Take a manual status snapshot from the dashboard without background polling
 - Export/import channel programming
-- Create and restore full backups including channels, settings, and search configuration
-
-Dashboard stats:
-- `Programmed Channels` is the exact number of non-empty channels out of 500
-- `Programmed Banks` is the exact number of banks containing at least one programmed channel
-- `Enabled Banks` is the scanner's actual bank enable/disable state
+- Create and restore full backups including channels, settings, search configuration, and bank enable state
+- Import or export BC125AT season files (`.bc125at_ss`) for compatibility with Windows users
 
 Audio note:
 - The BC125AT control connection here is USB data, not USB audio
 - If you want scanner audio on your Mac, feed the scanner's headphone/line output into your Mac audio input or a USB audio interface
-- The app can monitor/control scanner state while audio is routed separately
+- Use the app as a programmer/editor; it does not try to be a full live remote-control front panel
 
 Control note:
-- Current computer control covers safe programming, banks, settings, search/Close Call, backups, and live status monitoring
+- Current computer control covers safe programming, banks, settings, search/Close Call, backups, and manual status snapshots
 - Direct front-panel style remote navigation such as scan/hold/channel-jump/key emulation is not currently implemented in this project
+- While a programming session is active, the scanner may briefly show `REMOTE LOCK` or pause normal scanning; that is expected behavior for BC125AT computer control
 
 ### Command Line
 
 ```bash
+# Activate the local virtual environment
+source .venv/bin/activate
+
 # Set the library path (add to your .zshrc for convenience)
 export DYLD_LIBRARY_PATH=/opt/homebrew/lib
 
@@ -164,8 +170,13 @@ python3 -m bc125at export --format csv
 # Full backup (channels + settings + search config)
 python3 -m bc125at export --full-backup
 
+# Export Windows-compatible BC125AT season file
+python3 -m bc125at export --full-backup --file season.bc125at_ss
+
 # Import from file
 python3 -m bc125at import channels.csv
+python3 -m bc125at import season.bc125at_ss
+python3 -m bc125at import bc125at_backup.json
 
 # Live monitor
 python3 -m bc125at monitor
@@ -176,6 +187,68 @@ python3 -m bc125at search show
 # View tone code reference
 python3 -m bc125at tones
 ```
+
+## Import Format
+
+There are three useful formats in this project:
+
+- **Full Backup JSON** — This app's richest backup format. Includes channels, settings, search configuration, and bank enable state.
+- **BC125AT Season File (`.bc125at_ss`)** — Compatibility format used by the Windows BC125AT software.
+- **CSV / pasted text** — The most portable interchange format for shared channel lists and race sheets.
+
+The safest workflow is:
+
+1. Export a CSV or JSON sample from the app.
+2. Match that structure when creating or editing files.
+3. Import the edited file back into the app or CLI.
+
+There is no universal BC125AT JSON standard shared across Windows apps. CSV is the closest thing to a common interchange format, so treat CSV and pasted text as the most portable options. Full Backup JSON is this app's own round-trip backup format. `.bc125at_ss` exists for compatibility with the official Windows workflow.
+
+The importer also recognizes race-style CSV layouts where one row contains a car, driver, and multiple frequency columns such as `Primary`, `Secondary`, and `Other`. Those rows are automatically expanded into individual scanner channels during import.
+
+This project accepts both its native field names and some common aliases often produced by AI or radio users, including:
+
+- `channel` or `channel_index`
+- `name` or `alpha_tag`
+- `frequency` or `freq`
+- `modulation`, `mode`, or `mod`
+- `tone` or `ctcss_dcs`
+
+Accepted JSON shapes:
+
+```json
+[
+  {
+    "channel": 101,
+    "name": "Anaheim ARA",
+    "frequency": 146.79,
+    "modulation": "NFM",
+    "tone": "Search",
+    "delay": 2,
+    "lockout": false,
+    "priority": false
+  }
+]
+```
+
+```json
+{
+  "metadata": {
+    "bank_target": 3
+  },
+  "channels": [
+    {
+      "channel_index": 101,
+      "alpha_tag": "Anaheim ARA",
+      "frequency": 146.79,
+      "modulation": "NFM",
+      "ctcss_dcs": "Search"
+    }
+  ]
+}
+```
+
+If a JSON file omits channel numbers entirely, you can still import it by using `metadata.bank_target` and listing channels in the order you want them written. In the web app, both file imports and pasted text support previewing the destination bank before anything is written.
 
 ## Racing Frequencies Note
 
@@ -202,7 +275,7 @@ This tool bypasses the kernel driver entirely by using `libusb` for direct USB b
 
 ## Notes
 
-- The web app now computes dashboard channel and bank counts from the actual channel map rather than estimating from a single channel per bank.
+- The web app no longer polls the scanner continuously in the background. This is intentional, because aggressive reads can interfere with normal scanning on the BC125AT.
 - The web app and CLI both target the same safe, reversible scanner programming surface. Firmware and other unsafe operations are intentionally out of scope.
 
 ## Contributing

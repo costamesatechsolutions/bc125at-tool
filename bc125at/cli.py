@@ -26,6 +26,7 @@ from .presets import list_presets, get_preset_channels, PRESET_CATALOG
 from .io import (
     export_channels_csv, export_channels_json, import_channels_csv,
     import_channels_json, export_full_backup, import_full_backup, import_auto,
+    import_bc125at_ss, export_bc125at_ss,
 )
 
 
@@ -446,6 +447,7 @@ def cmd_export(args):
             ss = srch.read_search_settings()
             cc = srch.read_close_call()
             sg = srch.read_service_groups()
+            bank_status = cm.get_bank_status()
             search_dict = {
                 "delay": ss.delay,
                 "code_search": ss.code_search,
@@ -470,8 +472,12 @@ def cmd_export(args):
             }
 
             filepath = args.file or f"bc125at_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-            export_full_backup(channels, settings_dict, search_dict, filepath)
-            print(f"\nFull backup saved to: {filepath}")
+            if filepath.lower().endswith(".bc125at_ss"):
+                export_bc125at_ss(channels, settings_dict, search_dict, bank_status, filepath)
+                print(f"\nBC125AT season file saved to: {filepath}")
+            else:
+                export_full_backup(channels, settings_dict, search_dict, bank_status, filepath)
+                print(f"\nFull backup saved to: {filepath}")
         else:
             # Channels only
             print("Reading all channels...")
@@ -509,8 +515,8 @@ def cmd_import(args):
         import json
         with open(filepath) as f:
             data = json.load(f)
-        if data.get("format") == "bc125at-tool-backup":
-            channels, settings_dict, search_dict = import_full_backup(filepath)
+        if isinstance(data, dict) and data.get("format") == "bc125at-tool-backup":
+            channels, settings_dict, search_dict, bank_status = import_full_backup(filepath)
             print(f"Full backup detected: {len(channels)} channels + settings")
 
             with ScannerConnection() as conn:
@@ -520,6 +526,10 @@ def cmd_import(args):
                     channels,
                     callback=lambda i, ch: progress_bar(i, len(channels), "Writing")
                 )
+
+                if bank_status:
+                    print("Restoring bank enable state...")
+                    cm.set_bank_status(bank_status)
 
                 if settings_dict:
                     print("Restoring settings...")
@@ -568,6 +578,57 @@ def cmd_import(args):
 
             print(f"\nFull backup restored successfully.")
             return
+    elif filepath.endswith(".bc125at_ss"):
+        channels, settings_dict, search_dict, bank_status = import_bc125at_ss(filepath)
+        print(f"BC125AT season file detected: {len(channels)} channels + settings/search/banks")
+
+        with ScannerConnection() as conn:
+            cm = ChannelManager(conn)
+            print("Writing channels...")
+            cm.write_channels(
+                channels,
+                callback=lambda i, ch: progress_bar(i, len(channels), "Writing")
+            )
+
+            if bank_status:
+                print("Restoring bank enable state...")
+                cm.set_bank_status(bank_status)
+
+            if settings_dict:
+                print("Restoring settings...")
+                sm = SettingsManager(conn)
+                s = ScannerSettings(**settings_dict)
+                sm.write_all(s)
+
+            if search_dict:
+                print("Restoring search settings...")
+                srch = SearchManager(conn)
+                ss = SearchSettings(
+                    delay=search_dict.get("delay", 2),
+                    code_search=search_dict.get("code_search", False),
+                )
+                srch.write_search_settings(ss)
+
+                cc_data = search_dict.get("close_call", {})
+                cc = CloseCallSettings(
+                    mode=cc_data.get("mode", 0),
+                    alert_beep=cc_data.get("alert_beep", False),
+                    alert_light=cc_data.get("alert_light", False),
+                    bands=cc_data.get("bands", [True] * 5),
+                    lockout=cc_data.get("lockout", False),
+                )
+                srch.write_close_call(cc)
+                srch.write_service_groups(search_dict.get("service_groups", {}))
+                srch.write_custom_search_groups(search_dict.get("custom_groups", {}))
+                for range_data in search_dict.get("search_ranges", []):
+                    srch.write_custom_search_range(CustomSearchRange(
+                        index=int(range_data["index"]),
+                        lower_freq=float(range_data["lower_freq"]),
+                        upper_freq=float(range_data["upper_freq"]),
+                    ))
+
+        print("\nBC125AT season file restored successfully.")
+        return
 
     # Regular channel import
     channels = import_auto(filepath)
