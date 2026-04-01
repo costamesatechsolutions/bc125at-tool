@@ -1129,7 +1129,7 @@ async function toggleProgrammingSession() {
         }
         updateSessionUI(data);
         toast(sessionActive ? 'Programming session started' : 'Scanner released');
-        if (!sessionActive) {
+        if (sessionActive || activePanel === 'dashboard') {
             loadDashboard();
         }
     } catch (e) {
