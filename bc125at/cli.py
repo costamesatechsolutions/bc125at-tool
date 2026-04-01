@@ -765,7 +765,7 @@ def main():
     p_pre.add_argument("--start", "-s", type=int, help="Starting channel number")
 
     # --- export ---
-    p_exp = sub.add_parser("export", help="Export channels to CSV or JSON")
+    p_exp = sub.add_parser("export", help="Export channels, backups, or BC125AT season files")
     p_exp.add_argument("file", nargs="?", help="Output file path")
     p_exp.add_argument("--format", "-f", choices=["csv", "json"], default="csv",
                         help="Export format (default: csv)")
@@ -775,7 +775,7 @@ def main():
                         help="Include empty channels in export")
 
     # --- import ---
-    p_imp = sub.add_parser("import", help="Import channels from CSV or JSON")
+    p_imp = sub.add_parser("import", help="Import channels, backups, or BC125AT season files")
     p_imp.add_argument("file", help="Input file path")
     p_imp.add_argument("--bank", "-b", type=int, help="Remap channels to this bank (0-9)")
 

@@ -93,7 +93,7 @@ Start a programming session only when you want the app to take control of the sc
 Launch the browser-based interface from the repo root:
 
 ```bash
-cd "/Users/james/Documents/Claude Code/bc125at-tool"
+cd bc125at-tool
 source .venv/bin/activate
 DYLD_LIBRARY_PATH=/opt/homebrew/lib python -m bc125at.web.app
 ```
@@ -171,7 +171,7 @@ python3 -m bc125at export --format csv
 python3 -m bc125at export --full-backup
 
 # Export Windows-compatible BC125AT season file
-python3 -m bc125at export --full-backup --file season.bc125at_ss
+python3 -m bc125at export season.bc125at_ss --full-backup
 
 # Import from file
 python3 -m bc125at import channels.csv
