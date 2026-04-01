@@ -701,13 +701,12 @@ body {
         </div>
         <div class="card">
             <h2>Banks</h2>
+            <div class="setting-help" style="margin-bottom:12px;">Use the Channels tab when you want to read exact bank contents.</div>
             <div class="info-grid" id="bankGrid"></div>
         </div>
         <div class="card">
             <h2>Quick Stats</h2>
             <div class="info-grid">
-                <div class="info-item"><div class="label">Programmed Channels</div><div class="value" id="statChannels">Open Channels tab</div></div>
-                <div class="info-item"><div class="label">Programmed Banks</div><div class="value" id="statProgBanks">Open Channels tab</div></div>
                 <div class="info-item"><div class="label">Enabled Banks</div><div class="value" id="statEnabledBanks">-</div></div>
                 <div class="info-item"><div class="label">Close Call Mode</div><div class="value" id="statCC">-</div></div>
                 <div class="info-item"><div class="label">Weather Alert</div><div class="value" id="statWX">-</div></div>
@@ -1201,7 +1200,6 @@ async function loadDashboard() {
         div.innerHTML = '<div class="label">Bank ' + bank + '</div>' +
             '<div class="value" style="color:' + (enabled ? 'var(--green)' : 'var(--red)') + '">' +
             (enabled ? 'Enabled' : 'Disabled') + '</div>' +
-            '<div style="color:var(--text2);font-size:12px;margin-top:6px;">Use the Channels tab to read exact contents for this bank</div>' +
             '<div style="margin-top:10px;"><button class="btn btn-sm ' + (enabled ? 'btn-danger' : 'btn-success') +
             '" onclick="setBankEnabled(' + bank + ',' + (!enabled) + ')">' + (enabled ? 'Disable' : 'Enable') + '</button> ' +
             '<button class="btn btn-sm btn-secondary" onclick="clearBank(' + bank + ')">Clear</button></div>';

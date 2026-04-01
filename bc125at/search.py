@@ -66,14 +66,26 @@ class SearchManager:
     def __init__(self, conn):
         self.conn = conn
 
+    def _read_command(self, command, expected_prefix, attempts=2):
+        """Read a scanner command with a small retry for transient NG/ERR responses."""
+        self.conn.enter_program_mode()
+        last_resp = None
+        for _ in range(attempts):
+            resp = self.conn.send_command(command)
+            last_resp = resp
+            if resp in ("ERR", f"{expected_prefix},NG"):
+                continue
+            if resp and resp.startswith(expected_prefix + ","):
+                return resp
+        raise ConnectionError(f"Failed to read {command}: {last_resp}")
+
     # --- Close Call ---
 
     def read_close_call(self):
         """Read Close Call settings."""
-        self.conn.enter_program_mode()
-        resp = self.conn.send_command("CLC")
-        if resp and resp.startswith("CLC,"):
-            parts = resp.split(",")
+        resp = self._read_command("CLC", "CLC")
+        parts = resp.split(",")
+        try:
             bands_str = parts[4] if len(parts) > 4 else "11111"
             bands = [c == "1" for c in bands_str]
             while len(bands) < 5:
@@ -85,7 +97,8 @@ class SearchManager:
                 bands=bands,
                 lockout=parts[5] == "0" if len(parts) > 5 else False,
             )
-        raise ConnectionError(f"Failed to read Close Call settings: {resp}")
+        except (IndexError, ValueError) as exc:
+            raise ConnectionError(f"Invalid Close Call response: {resp}") from exc
 
     def write_close_call(self, cc):
         """Write Close Call settings."""
@@ -109,15 +122,15 @@ class SearchManager:
 
     def read_search_settings(self):
         """Read search/CC delay and code search settings."""
-        self.conn.enter_program_mode()
-        resp = self.conn.send_command("SCO")
-        if resp and resp.startswith("SCO,"):
-            parts = resp.split(",")
+        resp = self._read_command("SCO", "SCO")
+        parts = resp.split(",")
+        try:
             return SearchSettings(
                 delay=int(parts[1]),
                 code_search=parts[2] == "1",
             )
-        raise ConnectionError(f"Failed to read search settings: {resp}")
+        except (IndexError, ValueError) as exc:
+            raise ConnectionError(f"Invalid search settings response: {resp}") from exc
 
     def write_search_settings(self, ss):
         """Write search/CC delay and code search settings."""
@@ -133,15 +146,16 @@ class SearchManager:
 
     def read_service_groups(self):
         """Read service search group enable/disable. Returns dict of {name: enabled}."""
-        self.conn.enter_program_mode()
-        resp = self.conn.send_command("SSG")
-        if resp and resp.startswith("SSG,"):
-            bits = resp.split(",")[1]
+        resp = self._read_command("SSG", "SSG")
+        parts = resp.split(",")
+        try:
+            bits = parts[1]
             return {
                 SERVICE_GROUPS[i]: bits[i] == "0"  # 0=enabled, 1=disabled
                 for i in range(min(len(bits), len(SERVICE_GROUPS)))
             }
-        raise ConnectionError(f"Failed to read service groups: {resp}")
+        except (IndexError, ValueError) as exc:
+            raise ConnectionError(f"Invalid service group response: {resp}") from exc
 
     def write_service_groups(self, groups):
         """Write service search groups. groups: dict of {name: enabled}."""
@@ -159,16 +173,17 @@ class SearchManager:
 
     def read_custom_search_groups(self):
         """Read custom search group enable/disable. Returns dict of {1-10: enabled}."""
-        self.conn.enter_program_mode()
-        resp = self.conn.send_command("CSG")
-        if resp and resp.startswith("CSG,"):
-            bits = resp.split(",")[1]
+        resp = self._read_command("CSG", "CSG")
+        parts = resp.split(",")
+        try:
+            bits = parts[1]
             groups = {}
             for i in range(min(len(bits), 10)):
                 group_num = (i + 1) % 10 or 10
                 groups[group_num] = bits[i] == "0"
             return groups
-        raise ConnectionError(f"Failed to read custom search groups: {resp}")
+        except (IndexError, ValueError) as exc:
+            raise ConnectionError(f"Invalid custom search group response: {resp}") from exc
 
     def write_custom_search_groups(self, groups):
         """Write custom search groups. groups: dict of {1-10: enabled}."""
@@ -189,16 +204,16 @@ class SearchManager:
         """Read a custom search range (1-10)."""
         if not 1 <= index <= 10:
             raise ValueError("Search range index must be 1-10")
-        self.conn.enter_program_mode()
-        resp = self.conn.send_command(f"CSP,{index}")
-        if resp and resp.startswith("CSP,"):
-            parts = resp.split(",")
+        resp = self._read_command(f"CSP,{index}", "CSP")
+        parts = resp.split(",")
+        try:
             return CustomSearchRange(
                 index=int(parts[1]),
                 lower_freq=int(parts[2]) / 10000.0,
                 upper_freq=int(parts[3]) / 10000.0,
             )
-        raise ConnectionError(f"Failed to read search range {index}: {resp}")
+        except (IndexError, ValueError) as exc:
+            raise ConnectionError(f"Invalid search range response for {index}: {resp}") from exc
 
     def read_all_custom_search_ranges(self):
         """Read all 10 custom search ranges."""
