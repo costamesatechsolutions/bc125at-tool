@@ -1,0 +1,52 @@
+[
+  {
+    "channel": 101,
+    "name": "Anaheim ARA",
+    "frequency": 146.79,
+    "modulation": "NFM",
+    "tone": "Search",
+    "delay": 2,
+    "lockout": false,
+    "priority": false
+  },
+  {
+    "channel": 102,
+    "name": "Simplex Calling",
+    "frequency": 146.52,
+    "modulation": "AUTO",
+    "tone": "None",
+    "delay": 2,
+    "lockout": false,
+    "priority": false
+  },
+  {
+    "channel": 103,
+    "name": "Renegade Repeater",
+    "frequency": 147.435,
+    "modulation": "NFM",
+    "tone": "123.0",
+    "delay": 2,
+    "lockout": false,
+    "priority": false
+  },
+  {
+    "channel": 151,
+    "name": "Race Control",
+    "frequency": 461.2,
+    "modulation": "AUTO",
+    "tone": "None",
+    "delay": 2,
+    "lockout": false,
+    "priority": false
+  },
+  {
+    "channel": 152,
+    "name": "Safety",
+    "frequency": 451.225,
+    "modulation": "AUTO",
+    "tone": "None",
+    "delay": 2,
+    "lockout": false,
+    "priority": false
+  }
+]

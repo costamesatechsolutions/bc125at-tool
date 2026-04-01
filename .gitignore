@@ -7,6 +7,8 @@ build/
 *.csv
 *.json
 !package.json
+!examples/*.csv
+!examples/*.json
 .DS_Store
 CLAUDE.md
 AGENTS.md

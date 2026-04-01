@@ -224,9 +224,9 @@ There are three useful formats in this project:
 
 The safest workflow is:
 
-1. In the web app, use `Export Channels (CSV)` or `Export Channels (JSON)` to download a template based on your current programming.
-2. Or from the CLI, run `python -m bc125at export --format csv` or `python -m bc125at export --format json`.
-3. Edit that exported file and import it back into the app or CLI.
+1. Start from the included templates: [examples/import_template.csv](/Users/james/Documents/Claude Code/bc125at-tool/examples/import_template.csv) or [examples/import_template.json](/Users/james/Documents/Claude Code/bc125at-tool/examples/import_template.json).
+2. If you already have channels programmed, you can also use `Export Channels (CSV)` or `Export Channels (JSON)` in the web app, or run `python -m bc125at export --format csv` / `python -m bc125at export --format json`, to create a template based on your own scanner data.
+3. Edit that file and import it back into the app or CLI.
 
 There is no universal BC125AT JSON standard shared across Windows apps. CSV is the closest thing to a common interchange format, so treat CSV and pasted text as the most portable options. Full Backup JSON is this app's own round-trip backup format. `.bc125at_ss` exists for compatibility with the official Windows workflow.
 
