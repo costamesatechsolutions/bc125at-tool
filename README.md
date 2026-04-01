@@ -78,6 +78,12 @@ This project is provided **as-is**, without warranties of any kind. You are resp
 ```bash
 git clone https://github.com/costamesatechsolutions/bc125at-tool.git
 cd bc125at-tool
+./setup.sh
+```
+
+If you prefer the manual path, this does the same thing:
+
+```bash
 /opt/homebrew/bin/python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -94,6 +100,12 @@ Launch the browser-based interface from the repo root:
 
 ```bash
 cd bc125at-tool
+./run.sh
+```
+
+Manual launch is still available if you want it:
+
+```bash
 source .venv/bin/activate
 DYLD_LIBRARY_PATH=/opt/homebrew/lib python -m bc125at.web.app
 ```
