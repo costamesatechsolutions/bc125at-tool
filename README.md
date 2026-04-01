@@ -90,6 +90,20 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[gui]"
 ```
 
+### Update an existing checkout
+
+```bash
+cd bc125at-tool
+git pull origin main
+./setup.sh
+```
+
+Then launch it again with:
+
+```bash
+./run.sh
+```
+
 ## Usage
 
 ### Web GUI (recommended)
