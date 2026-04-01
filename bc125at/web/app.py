@@ -1156,7 +1156,7 @@ async function loadDashboard() {
         div.innerHTML = '<div class="label">Bank ' + bank + '</div>' +
             '<div class="value" style="color:' + (enabled ? 'var(--green)' : 'var(--red)') + '">' +
             (enabled ? 'Enabled' : 'Disabled') + '</div>' +
-            '<div style="color:var(--text2);font-size:12px;margin-top:6px;">Counts are not auto-read during live use</div>' +
+            '<div style="color:var(--text2);font-size:12px;margin-top:6px;">Use the Channels tab to read exact contents for this bank</div>' +
             '<div style="margin-top:10px;"><button class="btn btn-sm ' + (enabled ? 'btn-danger' : 'btn-success') +
             '" onclick="setBankEnabled(' + bank + ',' + (!enabled) + ')">' + (enabled ? 'Disable' : 'Enable') + '</button> ' +
             '<button class="btn btn-sm btn-secondary" onclick="clearBank(' + bank + ')">Clear</button></div>';

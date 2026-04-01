@@ -210,11 +210,13 @@ There are three useful formats in this project:
 
 The safest workflow is:
 
-1. Export a CSV or JSON sample from the app.
-2. Match that structure when creating or editing files.
-3. Import the edited file back into the app or CLI.
+1. In the web app, use `Export Channels (CSV)` or `Export Channels (JSON)` to download a template based on your current programming.
+2. Or from the CLI, run `python -m bc125at export --format csv` or `python -m bc125at export --format json`.
+3. Edit that exported file and import it back into the app or CLI.
 
 There is no universal BC125AT JSON standard shared across Windows apps. CSV is the closest thing to a common interchange format, so treat CSV and pasted text as the most portable options. Full Backup JSON is this app's own round-trip backup format. `.bc125at_ss` exists for compatibility with the official Windows workflow.
+
+Channel CSV/JSON exports include programmed channels by default, not every empty slot from 1-500. That is normal and keeps shared files much easier to edit. Sparse imports are supported, so you do not need to fill in every empty channel manually.
 
 The importer also recognizes race-style CSV layouts where one row contains a car, driver, and multiple frequency columns such as `Primary`, `Secondary`, and `Other`. Those rows are automatically expanded into individual scanner channels during import.
 
