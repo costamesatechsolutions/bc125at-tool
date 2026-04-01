@@ -286,7 +286,7 @@ Accepted JSON shapes:
 }
 ```
 
-If a JSON file does not include channel numbers, you can still import it by setting `metadata.bank_target` and listing the channels in the order you want them written. In the web app, both file imports and pasted text let you preview the destination bank before anything is written.
+If a JSON file does not include channel numbers, you can still import it by adding `"bank_target"` inside the top-level `"metadata"` section and listing the channels in the order you want them written. In the web app, both file imports and pasted text let you preview the destination bank before anything is written.
 
 ## Racing Frequencies Note
 
@@ -313,7 +313,7 @@ This tool bypasses the kernel driver entirely by using `libusb` for direct USB b
 
 ## Notes
 
-- The web app no longer polls the scanner continuously in the background. This is intentional, because aggressive reads can interfere with normal scanning on the BC125AT.
+- The web app does not continuously refresh scanner data in the background. This is intentional, because repeated reads can interfere with normal scanning on the BC125AT.
 - The web app and CLI both target the same safe, reversible scanner programming surface. Firmware and other unsafe operations are intentionally out of scope.
 
 ## Contributing
