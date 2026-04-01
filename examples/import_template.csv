@@ -1,6 +1,6 @@
-channel,name,frequency,modulation,tone,delay,lockout,priority
-101,Anaheim ARA,146.7900,NFM,Search,2,false,false
-102,Simplex Calling,146.5200,AUTO,None,2,false,false
-103,Renegade Repeater,147.4350,NFM,123.0,2,false,false
-151,Race Control,461.2000,AUTO,None,2,false,false
-152,Safety,451.2250,AUTO,None,2,false,false
+channel,name,frequency,modulation,tone,tone_code,delay,lockout,priority,bank
+101,Anaheim ARA,146.79,NFM,Search,127,2,False,False,3
+102,Simplex Calling,146.52,AUTO,None,0,2,False,False,3
+103,Renegade Repeater,147.435,NFM,CTCSS 123.0 Hz,82,2,False,False,3
+151,Race Control,461.2,NFM,None,0,2,False,False,4
+152,Safety,451.225,NFM,None,0,2,False,False,4

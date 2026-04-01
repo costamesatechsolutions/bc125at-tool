@@ -234,6 +234,8 @@ Channel CSV/JSON exports include programmed channels by default, not every empty
 
 The importer also recognizes race-style CSV layouts where one row contains a car, driver, and multiple frequency columns such as `Primary`, `Secondary`, and `Other`. Those rows are automatically expanded into individual scanner channels during import.
 
+The included templates now match the app's actual channel export format. The importer is also more forgiving than the exporter and accepts simpler files too.
+
 This project accepts both its native field names and some common aliases often produced by AI or radio users, including:
 
 - `channel` or `channel_index`
@@ -245,18 +247,26 @@ This project accepts both its native field names and some common aliases often p
 Accepted JSON shapes:
 
 ```json
-[
-  {
-    "channel": 101,
-    "name": "Anaheim ARA",
-    "frequency": 146.79,
-    "modulation": "NFM",
-    "tone": "Search",
-    "delay": 2,
-    "lockout": false,
-    "priority": false
-  }
-]
+{
+  "format": "bc125at-tool",
+  "version": 1,
+  "exported": "2026-04-01T00:00:00",
+  "channel_count": 1,
+  "channels": [
+    {
+      "channel": 101,
+      "name": "Anaheim ARA",
+      "frequency": 146.79,
+      "modulation": "NFM",
+      "tone": "Search",
+      "tone_code": 127,
+      "delay": 2,
+      "lockout": false,
+      "priority": false,
+      "bank": 3
+    }
+  ]
+}
 ```
 
 ```json
