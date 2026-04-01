@@ -90,7 +90,7 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[gui]"
 ```
 
-### Update an existing checkout
+### Update to the Latest Version
 
 ```bash
 cd bc125at-tool
@@ -108,7 +108,7 @@ Then launch it again with:
 
 ### Web GUI (recommended)
 
-Start a programming session only when you want the app to take control of the scanner for editing, import/export, or settings work. When the session is released, the scanner is left free to scan normally.
+Start a programming session only when you want the app to take control of the scanner for editing, import/export, or settings changes. When the session is released, the scanner is left free to scan normally.
 
 Launch the browser-based interface from the repo root:
 
@@ -117,14 +117,14 @@ cd bc125at-tool
 ./run.sh
 ```
 
-Manual launch is still available if you want it:
+If you prefer the manual launch path:
 
 ```bash
 source .venv/bin/activate
 DYLD_LIBRARY_PATH=/opt/homebrew/lib python -m bc125at.web.app
 ```
 
-Opens automatically at `http://localhost:5125`. From here you can:
+The app opens automatically at `http://localhost:5125`. From there you can:
 - View and edit all channels visually
 - Load presets with one click
 - Adjust all safe global settings with sliders and dropdowns
@@ -222,19 +222,19 @@ There are three useful formats in this project:
 - **BC125AT Season File (`.bc125at_ss`)** — Compatibility format used by the Windows BC125AT software.
 - **CSV / pasted text** — The most portable interchange format for shared channel lists and race sheets.
 
-The safest workflow is:
+Recommended workflow:
 
 1. Start from the included templates: [examples/import_template.csv](/Users/james/Documents/Claude Code/bc125at-tool/examples/import_template.csv) or [examples/import_template.json](/Users/james/Documents/Claude Code/bc125at-tool/examples/import_template.json).
-2. If you already have channels programmed, you can also use `Export Channels (CSV)` or `Export Channels (JSON)` in the web app, or run `python -m bc125at export --format csv` / `python -m bc125at export --format json`, to create a template based on your own scanner data.
+2. If you already have channels programmed, you can instead use `Export Channels (CSV)` or `Export Channels (JSON)` in the web app, or run `python -m bc125at export --format csv` or `python -m bc125at export --format json`, to create a template from your own scanner data.
 3. Edit that file and import it back into the app or CLI.
 
 There is no universal BC125AT JSON standard shared across Windows apps. CSV is the closest thing to a common interchange format, so treat CSV and pasted text as the most portable options. Full Backup JSON is this app's own round-trip backup format. `.bc125at_ss` exists for compatibility with the official Windows workflow.
 
-Channel CSV/JSON exports include programmed channels by default, not every empty slot from 1-500. That is normal and keeps shared files much easier to edit. Sparse imports are supported, so you do not need to fill in every empty channel manually.
+Channel CSV/JSON exports include programmed channels by default, not every empty slot from 1-500. That is normal and keeps shared files easier to edit. Sparse imports are supported, so you do not need to fill in every empty channel manually.
 
 The importer also recognizes race-style CSV layouts where one row contains a car, driver, and multiple frequency columns such as `Primary`, `Secondary`, and `Other`. Those rows are automatically expanded into individual scanner channels during import.
 
-The included templates now match the app's actual channel export format. The importer is also more forgiving than the exporter and accepts simpler files too.
+The included templates match the app's current channel export format. The importer is also more forgiving than the exporter and accepts simpler files too.
 
 This project accepts both its native field names and some common aliases often produced by AI or radio users, including:
 
@@ -286,7 +286,7 @@ Accepted JSON shapes:
 }
 ```
 
-If a JSON file omits channel numbers entirely, you can still import it by using `metadata.bank_target` and listing channels in the order you want them written. In the web app, both file imports and pasted text support previewing the destination bank before anything is written.
+If a JSON file does not include channel numbers, you can still import it by setting `metadata.bank_target` and listing the channels in the order you want them written. In the web app, both file imports and pasted text let you preview the destination bank before anything is written.
 
 ## Racing Frequencies Note
 
@@ -307,9 +307,9 @@ The BC125AT is an analog-only scanner. F1 team radio is fully encrypted digital 
 
 ## Technical Details
 
-The BC125AT presents as a USB CDC ACM (Communications Device Class, Abstract Control Model) device. On macOS, especially Apple Silicon, the built-in `AppleUSBCDCACM` kernel driver fails to bind properly, so no `/dev/tty.*` serial port is created.
+The BC125AT presents as a USB CDC ACM (Communications Device Class, Abstract Control Model) device. On macOS, especially Apple Silicon, the built-in `AppleUSBCDCACM` kernel driver does not bind reliably, so no usable `/dev/tty.*` serial port is created.
 
-This tool bypasses the kernel driver entirely by using `libusb` for direct USB bulk transfers to the scanner's endpoints. All communication uses the Uniden BC125AT serial protocol — ASCII commands terminated by carriage return (`\r`).
+This tool bypasses the kernel driver entirely by using `libusb` for direct USB bulk transfers to the scanner's endpoints. All communication uses the Uniden BC125AT serial protocol with ASCII commands terminated by carriage return (`\r`).
 
 ## Notes
 
