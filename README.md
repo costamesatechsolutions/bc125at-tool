@@ -329,7 +329,7 @@ Contributions are welcome! Some areas that would be great to improve:
 
 This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. See [LICENSE](LICENSE) for details.
 
-A polished native macOS GUI application is available separately on the Mac App Store from [Pine Heights Ventures LLC](https://costamesatechsolutions.com).
+A polished native macOS GUI application is planned separately from [Pine Heights Ventures LLC](https://costamesatechsolutions.com).
 
 ## Credits
 
