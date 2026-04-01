@@ -616,6 +616,10 @@ body {
     transition: all 0.3s;
     opacity: 0;
     transform: translateY(10px);
+    max-width: min(520px, calc(100vw - 48px));
+    white-space: normal;
+    line-height: 1.4;
+    cursor: pointer;
 }
 .toast.show { opacity: 1; transform: translateY(0); }
 .toast.success { border-color: var(--green); }
@@ -971,6 +975,7 @@ let channels = {};
 let activePanel = 'dashboard';
 let pendingImportPreview = null;
 let sessionActive = false;
+let toastTimer = null;
 
 // --- Navigation ---
 function showPanel(name, button=null) {
@@ -998,8 +1003,21 @@ function toast(msg, type='success') {
     const t = document.getElementById('toast');
     t.textContent = msg;
     t.className = 'toast show ' + type;
-    setTimeout(() => t.className = 'toast', 3000);
+    t.title = type === 'error' ? 'Click to dismiss' : '';
+    if (toastTimer) clearTimeout(toastTimer);
+    const duration = type === 'error' ? 12000 : 3000;
+    toastTimer = setTimeout(() => {
+        t.className = 'toast';
+        toastTimer = null;
+    }, duration);
 }
+
+document.getElementById('toast').addEventListener('click', () => {
+    const t = document.getElementById('toast');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = null;
+    t.className = 'toast';
+});
 
 // --- Modal ---
 function closeModal(id) {
