@@ -2,7 +2,7 @@
 
 **A macOS-compatible tool for programming the Uniden BC125AT scanner without Windows.** No virtual machines. No Parallels. Just plug in your scanner and go.
 
-Built for Apple Silicon and Intel Macs.
+Built and tested for Apple Silicon Macs. Other macOS hardware may work, but is not currently an officially tested target.
 
 ## Why This Exists
 
@@ -304,7 +304,7 @@ The BC125AT is an analog-only scanner. F1 team radio is fully encrypted digital 
 
 - **Scanner**: Uniden BC125AT (USB Vendor ID `1965`, Product ID `0017`)
 - **Also works with**: UBC125XLT, UBC126AT (international variants, untested)
-- **Mac**: Any Mac running macOS 11+ with USB (Apple Silicon or Intel)
+- **Mac**: Apple Silicon Mac running macOS 11+ with USB
 - **Connection**: USB cable to scanner, directly or via USB-C hub
 
 ## Technical Details
