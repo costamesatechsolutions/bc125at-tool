@@ -748,6 +748,7 @@ body {
                 <h2 style="margin-bottom:0">Channel Editor</h2>
                 <div style="display:flex;gap:8px;">
                     <button class="btn btn-primary btn-sm" onclick="showAddChannel()">+ Add Channel</button>
+                    <button class="btn btn-secondary btn-sm" onclick="unlockCurrentBank()">Unlock Current Bank</button>
                     <button class="btn btn-danger btn-sm" onclick="clearCurrentBank()">Clear Current Bank</button>
                 </div>
             </div>
@@ -1237,6 +1238,16 @@ async function clearBank(bank) {
 
 function clearCurrentBank() {
     clearBank(currentBank);
+}
+
+async function unlockCurrentBank() {
+    if (!confirm('Clear channel lockouts in Bank ' + currentBank + '?')) return;
+    const result = await api('banks/unlock', { method: 'POST', body: { bank: currentBank } });
+    if (result) {
+        toast(result.message || ('Bank ' + currentBank + ' unlocked'));
+        loadDashboard();
+        loadBank(currentBank);
+    }
 }
 
 async function loadLiveMonitor() {
@@ -2040,6 +2051,21 @@ def api_clear_bank():
         cm = ChannelManager(conn)
         cm.clear_bank(bank)
         return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route('/api/banks/unlock', methods=['POST'])
+def api_unlock_bank():
+    try:
+        data = _require_json_dict()
+        bank = int(data['bank'])
+        if bank not in range(10):
+            return jsonify({"error": "Bank must be 0-9"})
+        conn = _require_programming_session()
+        cm = ChannelManager(conn)
+        unlocked = cm.unlock_bank(bank)
+        return jsonify({"ok": True, "message": f"Unlocked {unlocked} channel(s) in bank {bank}"})
     except Exception as e:
         return jsonify({"error": str(e)})
 

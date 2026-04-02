@@ -358,6 +358,21 @@ class ChannelManager:
                 callback(i, channel_index)
         return True
 
+    def unlock_bank(self, bank_num, callback=None):
+        """Clear channel lockouts for all programmed channels in a bank (0-9)."""
+        if bank_num not in range(NUM_BANKS):
+            raise ValueError("Bank must be 0-9")
+        unlocked = 0
+        for ch in self.read_bank(bank_num):
+            if ch.is_empty or not ch.lockout:
+                continue
+            ch.lockout = False
+            self.write_channel(ch)
+            unlocked += 1
+            if callback:
+                callback(unlocked, ch)
+        return unlocked
+
     def read_all_channels(self, callback=None):
         """Read all 500 channels. Optional callback(index, channel) for progress."""
         self.conn.enter_program_mode()
