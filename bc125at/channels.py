@@ -300,6 +300,11 @@ class ChannelManager:
         self.conn = conn
 
     @staticmethod
+    def _blank_channel(index):
+        """Return a normalized empty channel with all flags cleared."""
+        return Channel(index=index, name="", frequency=None, modulation="AUTO", tone_code=0, delay=2, lockout=False, priority=False)
+
+    @staticmethod
     def _channel_from_response(resp, index=None):
         """Parse a CIN response, treating CIN,NG as an empty/unreadable slot."""
         if resp == "CIN,NG":
@@ -350,6 +355,8 @@ class ChannelManager:
         resp = self.conn.send_command(f"DCH,{index}")
         if resp not in ("DCH,OK", "DCH,NG"):
             raise ConnectionError(f"Failed to delete channel {index}: {resp}")
+        # Some radios leave lockout/priority bits behind on an "empty" slot.
+        self.write_channel(self._blank_channel(index))
         return True
 
     def clear_bank(self, bank_num, callback=None):
@@ -363,17 +370,18 @@ class ChannelManager:
             resp = self.conn.send_command(f"DCH,{channel_index}")
             if resp not in ("DCH,OK", "DCH,NG"):
                 raise ConnectionError(f"Failed to clear channel {channel_index}: {resp}")
+            self.write_channel(self._blank_channel(channel_index))
             if callback:
                 callback(i, channel_index)
         return True
 
     def unlock_bank(self, bank_num, callback=None):
-        """Clear channel lockouts for all programmed channels in a bank (0-9)."""
+        """Clear channel lockouts for all channels in a bank (0-9), including empty slots."""
         if bank_num not in range(NUM_BANKS):
             raise ValueError("Bank must be 0-9")
         unlocked = 0
         for ch in self.read_bank(bank_num):
-            if ch.is_empty or not ch.lockout:
+            if not ch.lockout:
                 continue
             ch.lockout = False
             self.write_channel(ch)
