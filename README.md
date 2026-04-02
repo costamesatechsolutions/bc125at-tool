@@ -290,6 +290,8 @@ Accepted JSON shapes:
 
 If a JSON file does not include channel numbers, you can still import it by adding `"bank_target"` inside the top-level `"metadata"` section and listing the channels in the order you want them written. In the web app, both file imports and pasted text let you preview the destination bank before anything is written.
 
+When you choose **Use saved channel numbers from file/text**, the importer keeps the channel positions already stored in the file and only overwrites the channels included in that import. **Clear destination bank first** only applies when you pick one specific destination bank for a sequential load. Full backup JSON files and BC125AT season files always restore their own saved bank layout, settings, and search data.
+
 ## Racing Frequencies Note
 
 Motorsport team frequencies change per event. The presets include race operations channels (race control, safety, timing) which are generally stable, plus example team frequencies.

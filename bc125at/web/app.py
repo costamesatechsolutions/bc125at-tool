@@ -218,6 +218,12 @@ def _build_import_preview(channels, target_bank=None, clear_bank_first=False, tr
     }
 
 
+def _build_full_restore_preview(channels, kind, note):
+    preview = _build_import_preview(channels, target_bank=None, clear_bank_first=False, kind=kind)
+    preview["note"] = note
+    return preview
+
+
 def _session_active():
     """Whether the web app currently owns the scanner connection."""
     return _conn is not None
@@ -827,7 +833,7 @@ body {
                 Load channels from CSV/JSON, paste channel text directly, restore a full backup JSON file, or import a BC125AT season file.
             </p>
             <p style="color:var(--text2);margin-bottom:16px;font-size:13px;line-height:1.5;">
-                Best option: export a sample from this app first, then match that format. The importer also accepts common aliases such as
+                Best option: start from the included templates, or export a sample from this app first and match that format. The importer also accepts common aliases such as
                 <code>channel_index</code>, <code>alpha_tag</code>, <code>freq</code>, and <code>ctcss_dcs</code>.
                 JSON can be either a top-level list or an object with <code>channels</code>. Race CSV files with columns like
                 <code>Car</code>, <code>Driver</code>, <code>Primary</code>, and <code>Secondary</code> are also supported.
@@ -838,7 +844,7 @@ body {
                 <div class="form-group">
                     <label>Import Destination</label>
                     <select id="importBankTarget">
-                        <option value="keep">Use channel numbers from file/text</option>
+                        <option value="keep">Use saved channel numbers from file/text</option>
                         <option value="1">Load sequentially into Bank 1 (CH 1-50)</option>
                         <option value="2">Load sequentially into Bank 2 (CH 51-100)</option>
                         <option value="3">Load sequentially into Bank 3 (CH 101-150)</option>
@@ -858,6 +864,9 @@ body {
                     </div>
                 </div>
             </div>
+            <p id="importOptionsHelp" style="color:var(--text2);margin:-6px 0 16px 0;font-size:13px;line-height:1.5;">
+                Use channel numbers from file/text keeps the file's saved channel positions across one or more banks and only overwrites the channels included in the import. To clear a bank first, choose one destination bank above. Full backup JSON files and BC125AT season files always restore their own saved layout and ignore these destination options.
+            </p>
             <input type="file" id="importFile" accept=".json,.csv,.bc125at_ss" style="display:none;" onchange="previewFileImport(this)">
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
                 <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Import File...</button>
@@ -1050,6 +1059,9 @@ function renderImportPreview(preview) {
     if (preview.truncated) {
         summary += ' ' + preview.truncated + ' channel' + (preview.truncated === 1 ? ' was' : 's were') + ' skipped because a bank only holds 50.';
     }
+    if (preview.note) {
+        summary += ' ' + preview.note;
+    }
     document.getElementById('importPreviewSummary').textContent = summary;
 
     let html = '<table class="channel-table"><thead><tr><th>CH</th><th>Name</th><th>Freq</th><th>Mode</th><th>Tone</th><th>Bank</th></tr></thead><tbody>';
@@ -1073,11 +1085,30 @@ function renderImportPreview(preview) {
 }
 
 function currentImportOptions() {
+    const bankTarget = document.getElementById('importBankTarget').value;
     return {
-        bank_target: document.getElementById('importBankTarget').value,
-        clear_bank_first: document.getElementById('importClearBank').checked
+        bank_target: bankTarget,
+        clear_bank_first: bankTarget === 'keep' ? false : document.getElementById('importClearBank').checked
     };
 }
+
+function updateImportOptionsUI() {
+    const target = document.getElementById('importBankTarget').value;
+    const clearBank = document.getElementById('importClearBank');
+    const help = document.getElementById('importOptionsHelp');
+
+    if (target === 'keep') {
+        clearBank.checked = false;
+        clearBank.disabled = true;
+        help.textContent = "Use channel numbers from file/text keeps the file's saved channel positions across one or more banks and only overwrites the channels included in the import. To clear a bank first, choose one destination bank above. Full backup JSON files and BC125AT season files always restore their own saved layout and ignore these destination options.";
+    } else {
+        clearBank.disabled = false;
+        help.textContent = 'Sequential bank import writes channels into one destination bank in order. Clear destination bank first only clears that one bank before writing. Full backup JSON files and BC125AT season files always restore their own saved layout and ignore these destination options.';
+    }
+}
+
+document.getElementById('importBankTarget').addEventListener('change', updateImportOptionsUI);
+updateImportOptionsUI();
 
 function updateSessionUI(state) {
     sessionActive = Boolean(state.active);
@@ -1772,8 +1803,11 @@ async function previewFileImport(input) {
     const formData = new FormData();
     formData.append('file', file);
     const options = currentImportOptions();
-    formData.append('bank_target', options.bank_target);
-    formData.append('clear_bank_first', options.clear_bank_first ? '1' : '0');
+    const isSeasonFile = /[.]bc125at_ss$/i.test(file.name);
+    if (!isSeasonFile) {
+        formData.append('bank_target', options.bank_target);
+        formData.append('clear_bank_first', options.clear_bank_first ? '1' : '0');
+    }
     document.getElementById('importStatus').innerHTML = '<div class="spinner"></div> Building preview...';
     try {
         const resp = await fetch('/api/import/preview', { method: 'POST', body: formData });
@@ -1830,8 +1864,11 @@ async function confirmImportPreview() {
             const formData = new FormData();
             formData.append('file', file);
             const options = currentImportOptions();
-            formData.append('bank_target', options.bank_target);
-            formData.append('clear_bank_first', options.clear_bank_first ? '1' : '0');
+            const isSeasonFile = /[.]bc125at_ss$/i.test(file.name);
+            if (!isSeasonFile) {
+                formData.append('bank_target', options.bank_target);
+                formData.append('clear_bank_first', options.clear_bank_first ? '1' : '0');
+            }
             resp = await fetch('/api/import', { method: 'POST', body: formData });
         } else {
             resp = await fetch('/api/import/text', {
@@ -2560,10 +2597,12 @@ def api_import_preview():
         clear_bank_first = request.form.get('clear_bank_first') in ('1', 'true', 'True', 'yes', 'on')
 
         if ext == '.bc125at_ss':
-            if target_bank is not None or clear_bank_first:
-                return jsonify({"error": "BC125AT season files use their own bank layout and do not support destination remapping"})
             channels, settings_dict, search_dict, bank_status = import_bc125at_ss(filepath)
-            preview = _build_import_preview(channels, kind="season channels")
+            preview = _build_full_restore_preview(
+                channels,
+                kind="season channels",
+                note="This season file restores its own channel positions, bank states, settings, and search data."
+            )
             preview["season_file"] = {
                 "settings": True,
                 "search": True,
@@ -2574,10 +2613,12 @@ def api_import_preview():
         if ext == '.json':
             data = json.loads(content)
             if isinstance(data, dict) and data.get('format') == 'bc125at-tool-backup':
-                if target_bank is not None or clear_bank_first:
-                    return jsonify({"error": "Full backup restore does not support destination bank remapping"})
                 channels, settings_dict, search_dict, bank_status = import_full_backup(filepath)
-                preview = _build_import_preview(channels, kind="backup channels")
+                preview = _build_full_restore_preview(
+                    channels,
+                    kind="backup channels",
+                    note="This full backup restores its own channel positions, bank states, settings, and search data."
+                )
                 preview["backup"] = {
                     "settings": bool(settings_dict),
                     "search": bool(search_dict),
@@ -2628,8 +2669,6 @@ def api_import():
         clear_bank_first = request.form.get('clear_bank_first') in ('1', 'true', 'True', 'yes', 'on')
 
         if ext == '.bc125at_ss':
-            if target_bank is not None or clear_bank_first:
-                return jsonify({"error": "BC125AT season files use their own bank layout and do not support destination remapping"})
             channels, settings_dict, search_dict, bank_status = import_bc125at_ss(filepath)
             conn = _require_programming_session()
             cm = ChannelManager(conn)
@@ -2667,8 +2706,6 @@ def api_import():
         if ext == '.json':
             data = json.loads(content)
             if isinstance(data, dict) and data.get('format') == 'bc125at-tool-backup':
-                if target_bank is not None or clear_bank_first:
-                    return jsonify({"error": "Full backup restore does not support destination bank remapping"})
                 channels, settings_dict, search_dict, bank_status = import_full_backup(filepath)
                 conn = _require_programming_session()
                 cm = ChannelManager(conn)
