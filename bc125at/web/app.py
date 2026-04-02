@@ -159,6 +159,16 @@ def _parse_import_bank(raw_value):
     return bank
 
 
+def _decode_upload_bytes(raw_bytes):
+    """Decode uploaded text files with a small set of practical fallbacks."""
+    for encoding in ("utf-8", "utf-8-sig", "cp1252", "latin-1"):
+        try:
+            return raw_bytes.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise ValueError("Could not decode uploaded file. Save it as UTF-8, CSV, JSON, or BC125AT season text and try again.")
+
+
 def _apply_import_options(channels, target_bank=None, clear_bank_first=False):
     """Apply destination bank options before writing channels."""
     channels = list(channels)
@@ -2488,7 +2498,7 @@ def api_import_preview():
         file = request.files.get('file')
         if not file or not file.filename:
             return jsonify({"error": "No file selected"})
-        content = file.read().decode('utf-8')
+        content = _decode_upload_bytes(file.read())
         ext = os.path.splitext(file.filename)[1].lower()
         if ext not in ('.json', '.csv', '.bc125at_ss'):
             return jsonify({"error": "Only CSV, JSON, and BC125AT season files are supported"})
@@ -2555,7 +2565,7 @@ def api_import():
         file = request.files.get('file')
         if not file or not file.filename:
             return jsonify({"error": "No file selected"})
-        content = file.read().decode('utf-8')
+        content = _decode_upload_bytes(file.read())
         ext = os.path.splitext(file.filename)[1].lower()
         if ext not in ('.json', '.csv', '.bc125at_ss'):
             return jsonify({"error": "Only CSV, JSON, and BC125AT season files are supported"})

@@ -552,7 +552,7 @@ def export_bc125at_ss(channels, settings_dict, search_dict, bank_status, filepat
         lower = int(round(float(item.get("lower_freq", 25.0)) * 1000000))
         upper = int(round(float(item.get("upper_freq", 25.0)) * 1000000))
         lines.append(
-            f"Custom\t{index}\tSearch Bnak{index}\t{lower}\t{upper}\t"
+            f"Custom\t{index}\tSearch Bank{index}\t{lower}\t{upper}\t"
             f"{'On' if custom_groups.get(index, False) else 'Off'}"
         )
 

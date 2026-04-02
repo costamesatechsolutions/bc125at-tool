@@ -84,7 +84,7 @@ cd bc125at-tool
 If you prefer the manual path, this does the same thing:
 
 ```bash
-/opt/homebrew/bin/python3 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[gui]"
@@ -121,7 +121,8 @@ If you prefer the manual launch path:
 
 ```bash
 source .venv/bin/activate
-DYLD_LIBRARY_PATH=/opt/homebrew/lib python -m bc125at.web.app
+export HOMEBREW_PREFIX="$(brew --prefix)"
+DYLD_LIBRARY_PATH="$HOMEBREW_PREFIX/lib" python -m bc125at.web.app
 ```
 
 The app opens automatically at `http://localhost:5125`. From there you can:
@@ -153,7 +154,8 @@ Control note:
 source .venv/bin/activate
 
 # Set the library path (add to your .zshrc for convenience)
-export DYLD_LIBRARY_PATH=/opt/homebrew/lib
+export HOMEBREW_PREFIX="$(brew --prefix)"
+export DYLD_LIBRARY_PATH="$HOMEBREW_PREFIX/lib"
 
 # Scanner info and status
 python3 -m bc125at info
@@ -224,7 +226,7 @@ There are three useful formats in this project:
 
 Recommended workflow:
 
-1. Start from the included templates: [examples/import_template.csv](/Users/james/Documents/Claude Code/bc125at-tool/examples/import_template.csv) or [examples/import_template.json](/Users/james/Documents/Claude Code/bc125at-tool/examples/import_template.json).
+1. Start from the included templates: [examples/import_template.csv](examples/import_template.csv) or [examples/import_template.json](examples/import_template.json).
 2. If you already have channels programmed, you can instead use `Export Channels (CSV)` or `Export Channels (JSON)` in the web app, or run `python -m bc125at export --format csv` or `python -m bc125at export --format json`, to create a template from your own scanner data.
 3. Edit that file and import it back into the app or CLI.
 

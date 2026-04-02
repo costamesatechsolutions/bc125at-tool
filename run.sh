@@ -11,6 +11,10 @@ if [[ ! -d .venv ]]; then
 fi
 
 source .venv/bin/activate
-export DYLD_LIBRARY_PATH=/opt/homebrew/lib
+HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-$(brew --prefix 2>/dev/null || true)}"
+if [[ -z "${HOMEBREW_PREFIX}" ]]; then
+  HOMEBREW_PREFIX="/opt/homebrew"
+fi
+export DYLD_LIBRARY_PATH="$HOMEBREW_PREFIX/lib"
 
 python -m bc125at.web.app

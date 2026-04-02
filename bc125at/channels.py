@@ -207,7 +207,7 @@ class Channel:
         CIN,<INDEX>,<NAME>,<FRQ> with optional MOD, CTCSS, DLY, LOUT, PRI
         """
         parts = response.split(",")
-        if len(parts) < 3 or parts[0] != "CIN":
+        if len(parts) < 4 or parts[0] != "CIN":
             raise ValueError(f"Invalid CIN response: {response}")
 
         def get(idx, default=""):
