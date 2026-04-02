@@ -34,7 +34,7 @@ This tool communicates directly with the scanner over USB, bypassing the macOS s
 
 ## Safety
 
-This tool **cannot brick your scanner**. There is no firmware update functionality, bootloader access, or low-level flash writing. It only uses documented channel, bank, search, and settings commands that are reversible from the app, CLI, or the scanner itself.
+This tool does **not** perform firmware updates, bootloader access, or low-level flash writing. It is limited to normal channel, bank, search, and settings programming commands.
 
 Safe editable settings currently exposed are:
 - Volume
@@ -48,7 +48,7 @@ Safe editable settings currently exposed are:
 - Band plan
 - Battery charge timer
 
-Worst case scenario: you write a bad channel or pick a setting you don't like, then change it back or factory-reset from the scanner's own buttons.
+In normal use, the most likely failure mode is a bad channel or an unwanted setting change, which you can usually correct from the app, CLI, or the scanner's own controls.
 
 ## Disclaimer
 
