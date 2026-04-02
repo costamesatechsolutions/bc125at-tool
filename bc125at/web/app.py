@@ -31,7 +31,7 @@ from bc125at.settings import (
 )
 from bc125at.search import (
     SearchManager, CloseCallSettings, SearchSettings, CustomSearchRange,
-    CC_MODE_OPTIONS, CC_BANDS, SERVICE_GROUPS,
+    CC_MODE_OPTIONS, CC_BANDS, SERVICE_GROUPS, snap_search_frequency,
 )
 from bc125at.presets import list_presets, get_preset_channels, PRESET_CATALOG
 from bc125at.io import export_channels_csv, export_channels_json, export_full_backup, export_bc125at_ss
@@ -1481,18 +1481,18 @@ async function loadSearch() {
     html += '<div class="setting-section-title">Custom Search Ranges</div>';
     data.search_ranges.forEach(r => {
         html += '<div class="setting-row"><div class="setting-label">Range ' + r.index + '</div><div class="setting-value">' +
-            '<input id="rangeLower' + r.index + '" class="inline-edit" type="number" step="0.0001" value="' + r.lower.toFixed(4) + '">' +
-            ' <input id="rangeUpper' + r.index + '" class="inline-edit" type="number" step="0.0001" value="' + r.upper.toFixed(4) + '">' +
+            '<input id="rangeLower' + r.index + '" class="inline-edit" type="number" step="0.00001" value="' + r.lower.toFixed(5) + '">' +
+            ' <input id="rangeUpper' + r.index + '" class="inline-edit" type="number" step="0.00001" value="' + r.upper.toFixed(5) + '">' +
             ' <button class="btn btn-sm btn-secondary" onclick="saveSearchRange(' + r.index + ')">Save</button></div></div>';
     });
 
     html += '<div class="setting-section-title">Global Lockout Frequencies</div>';
     html += '<div class="setting-row"><div class="setting-label">Add Frequency</div><div class="setting-value">' +
-        '<input id="newLockoutFreq" class="inline-edit" type="number" step="0.0001" placeholder="155.2500">' +
+        '<input id="newLockoutFreq" class="inline-edit" type="number" step="0.00001" placeholder="155.25000">' +
         ' <button class="btn btn-sm btn-secondary" onclick="addLockoutFrequency()">Add</button></div></div>';
     if (data.lockout_frequencies.length) {
         data.lockout_frequencies.forEach(freq => {
-            html += '<div class="setting-row"><div class="setting-label">' + freq.toFixed(4) + ' MHz</div><div class="setting-value">' +
+            html += '<div class="setting-row"><div class="setting-label">' + freq.toFixed(5) + ' MHz</div><div class="setting-value">' +
                 '<button class="btn btn-sm btn-danger" onclick="removeLockoutFrequency(' + freq + ')">Remove</button></div></div>';
         });
     } else {
@@ -1561,7 +1561,17 @@ async function saveSearchRange(index) {
     }
     const result = await api('search/range', { method: 'POST', body: { index: index, lower: lower, upper: upper } });
     if (result) {
-        toast('Search range ' + index + ' updated');
+        const lowerNum = Number(lower);
+        const upperNum = Number(upper);
+        if (
+            result.normalized &&
+            (Math.abs(result.normalized.lower - lowerNum) > 0.000001 ||
+             Math.abs(result.normalized.upper - upperNum) > 0.000001)
+        ) {
+            toast('Search range ' + index + ' updated and snapped to valid tuning steps');
+        } else {
+            toast('Search range ' + index + ' updated');
+        }
         setTimeout(() => loadSearch(), 250);
     }
 }
@@ -2260,7 +2270,17 @@ def api_set_search_range():
         conn = _require_programming_session()
         srch = SearchManager(conn)
         srch.write_custom_search_range(sr)
-        return jsonify({"ok": True})
+        snapped_lower, lower_step = snap_search_frequency(sr.lower_freq)
+        snapped_upper, upper_step = snap_search_frequency(sr.upper_freq)
+        return jsonify({
+            "ok": True,
+            "normalized": {
+                "lower": snapped_lower,
+                "upper": snapped_upper,
+                "lower_step_khz": lower_step,
+                "upper_step_khz": upper_step,
+            }
+        })
     except Exception as e:
         return jsonify({"error": str(e)})
 

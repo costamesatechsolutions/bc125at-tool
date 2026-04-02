@@ -27,6 +27,34 @@ SERVICE_GROUPS = [
 
 DELAY_VALUES = [-10, -5, 0, 1, 2, 3, 4, 5]
 
+SEARCH_STEP_RULES = [
+    (25.0, 28.0, 5.0),
+    (28.0, 54.0, 5.0),
+    (108.0, 136.9916, 8.33),
+    (137.0, 174.0, 5.0),
+    (225.0, 380.0, 12.5),
+    (400.0, 512.0, 6.25),
+]
+
+
+def get_search_step_rule(freq_mhz):
+    """Return (lower_bound_mhz, step_khz) for a search frequency, or None."""
+    for lower, upper, step_khz in SEARCH_STEP_RULES:
+        if lower <= freq_mhz <= upper:
+            return lower, step_khz
+    return None
+
+
+def snap_search_frequency(freq_mhz):
+    """Snap a search-related frequency to the nearest valid tuning step."""
+    rule = get_search_step_rule(freq_mhz)
+    if rule is None:
+        return round(freq_mhz, 5), None
+    lower, step_khz = rule
+    step_mhz = step_khz / 1000.0
+    snapped = lower + round((freq_mhz - lower) / step_mhz) * step_mhz
+    return round(snapped, 5), step_khz
+
 
 @dataclass
 class CloseCallSettings:
@@ -229,13 +257,15 @@ class SearchManager:
         """Write a custom search range."""
         if not 1 <= sr.index <= 10:
             raise ValueError("Search range index must be 1-10")
-        if sr.lower_freq <= 0 or sr.upper_freq <= 0:
+        lower_freq, _ = snap_search_frequency(float(sr.lower_freq))
+        upper_freq, _ = snap_search_frequency(float(sr.upper_freq))
+        if lower_freq <= 0 or upper_freq <= 0:
             raise ValueError("Search range frequencies must be positive")
-        if sr.lower_freq >= sr.upper_freq:
+        if lower_freq >= upper_freq:
             raise ValueError("Search range lower frequency must be less than upper frequency")
         self.conn.enter_program_mode()
-        lo = f"{int(round(sr.lower_freq * 10000)):08d}"
-        hi = f"{int(round(sr.upper_freq * 10000)):08d}"
+        lo = f"{int(round(lower_freq * 10000)):08d}"
+        hi = f"{int(round(upper_freq * 10000)):08d}"
         resp = self.conn.send_command(f"CSP,{sr.index},{lo},{hi}")
         if resp != "CSP,OK":
             raise ConnectionError(f"Failed to write search range {sr.index}: {resp}")
@@ -302,7 +332,8 @@ class SearchManager:
     def lock_frequency(self, freq_mhz):
         """Add a frequency to global lockout."""
         self.conn.enter_program_mode()
-        scanner_freq = f"{int(round(freq_mhz * 10000)):08d}"
+        snapped_freq, _ = snap_search_frequency(float(freq_mhz))
+        scanner_freq = f"{int(round(snapped_freq * 10000)):08d}"
         resp = self.conn.send_command(f"LOF,{scanner_freq}")
         if resp != "LOF,OK":
             raise ConnectionError(f"Failed to lock frequency {freq_mhz}: {resp}")
@@ -311,7 +342,8 @@ class SearchManager:
     def unlock_frequency(self, freq_mhz):
         """Remove a frequency from global lockout."""
         self.conn.enter_program_mode()
-        scanner_freq = f"{int(round(freq_mhz * 10000)):08d}"
+        snapped_freq, _ = snap_search_frequency(float(freq_mhz))
+        scanner_freq = f"{int(round(snapped_freq * 10000)):08d}"
         resp = self.conn.send_command(f"ULF,{scanner_freq}")
         if resp != "ULF,OK":
             raise ConnectionError(f"Failed to unlock frequency {freq_mhz}: {resp}")
