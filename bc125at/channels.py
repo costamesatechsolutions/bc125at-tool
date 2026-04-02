@@ -348,7 +348,7 @@ class ChannelManager:
             raise ValueError(f"Channel index must be 1-{NUM_CHANNELS}")
         self.conn.enter_program_mode()
         resp = self.conn.send_command(f"DCH,{index}")
-        if resp != "DCH,OK":
+        if resp not in ("DCH,OK", "DCH,NG"):
             raise ConnectionError(f"Failed to delete channel {index}: {resp}")
         return True
 
@@ -361,7 +361,7 @@ class ChannelManager:
         self.conn.enter_program_mode()
         for i, channel_index in enumerate(range(start, end), 1):
             resp = self.conn.send_command(f"DCH,{channel_index}")
-            if resp != "DCH,OK":
+            if resp not in ("DCH,OK", "DCH,NG"):
                 raise ConnectionError(f"Failed to clear channel {channel_index}: {resp}")
             if callback:
                 callback(i, channel_index)

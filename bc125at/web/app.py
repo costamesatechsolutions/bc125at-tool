@@ -1287,7 +1287,12 @@ async function loadBank(bank) {
     document.getElementById('channelTableContainer').style.display = 'none';
 
     const data = await api('channels/bank/' + bank);
-    if (!data) return;
+    if (!data) {
+        document.getElementById('channelLoading').style.display = 'none';
+        document.getElementById('channelTableContainer').style.display = 'block';
+        document.getElementById('channelBody').innerHTML = '<tr><td colspan="8" style="color:var(--red);text-align:center;">Could not load this bank. Try again.</td></tr>';
+        return;
+    }
 
     document.getElementById('channelLoading').style.display = 'none';
     document.getElementById('channelTableContainer').style.display = 'block';
