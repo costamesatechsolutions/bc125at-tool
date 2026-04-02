@@ -209,8 +209,7 @@ class SearchManager:
         """Read a custom search range (1-10)."""
         if not 1 <= index <= 10:
             raise ValueError("Search range index must be 1-10")
-        protocol_index = self._protocol_range_index(index)
-        resp = self._read_command(f"CSP,{protocol_index}", "CSP")
+        resp = self._read_command(f"CSP,{index}", "CSP")
         parts = resp.split(",")
         try:
             return CustomSearchRange(
