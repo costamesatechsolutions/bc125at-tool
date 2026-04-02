@@ -79,6 +79,11 @@ class SearchManager:
                 return resp
         raise ConnectionError(f"Failed to read {command}: {last_resp}")
 
+    @staticmethod
+    def _protocol_range_index(index):
+        """Scanner protocol uses 0 for the 10th custom search range."""
+        return 0 if int(index) == 10 else int(index)
+
     # --- Close Call ---
 
     def read_close_call(self):
@@ -204,11 +209,12 @@ class SearchManager:
         """Read a custom search range (1-10)."""
         if not 1 <= index <= 10:
             raise ValueError("Search range index must be 1-10")
-        resp = self._read_command(f"CSP,{index}", "CSP")
+        protocol_index = self._protocol_range_index(index)
+        resp = self._read_command(f"CSP,{protocol_index}", "CSP")
         parts = resp.split(",")
         try:
             return CustomSearchRange(
-                index=int(parts[1]),
+                index=(int(parts[1]) or 10),
                 lower_freq=int(parts[2]) / 10000.0,
                 upper_freq=int(parts[3]) / 10000.0,
             )
@@ -234,7 +240,8 @@ class SearchManager:
         self.conn.enter_program_mode()
         lo = f"{int(round(sr.lower_freq * 10000)):08d}"
         hi = f"{int(round(sr.upper_freq * 10000)):08d}"
-        resp = self.conn.send_command(f"CSP,{sr.index},{lo},{hi}")
+        protocol_index = self._protocol_range_index(sr.index)
+        resp = self.conn.send_command(f"CSP,{protocol_index},{lo},{hi}")
         if resp != "CSP,OK":
             raise ConnectionError(f"Failed to write search range {sr.index}: {resp}")
         return True
