@@ -381,13 +381,18 @@ class ChannelManager:
             raise ValueError("Bank must be 0-9")
         unlocked = 0
         for ch in self.read_bank(bank_num):
-            if not ch.lockout:
+            if ch.is_empty:
+                self.write_channel(self._blank_channel(ch.index))
+                unlocked += 1
+                if callback:
+                    callback(unlocked, ch)
                 continue
-            ch.lockout = False
-            self.write_channel(ch)
-            unlocked += 1
-            if callback:
-                callback(unlocked, ch)
+            if ch.lockout:
+                ch.lockout = False
+                self.write_channel(ch)
+                unlocked += 1
+                if callback:
+                    callback(unlocked, ch)
         return unlocked
 
     def read_all_channels(self, callback=None):
