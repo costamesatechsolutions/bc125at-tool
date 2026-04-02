@@ -1522,7 +1522,7 @@ async function saveSearchSetting(setting, value) {
     const result = await api('search/set', { method: 'POST', body: { setting: setting, value: value } });
     if (result) {
         toast('Search setting updated');
-        loadSearch();
+        setTimeout(() => loadSearch(), 250);
         loadDashboard();
     }
 }
@@ -1531,7 +1531,7 @@ async function saveCloseCallBand(index, value) {
     const result = await api('search/closecall-band', { method: 'POST', body: { index: index, enabled: String(value) === '1' } });
     if (result) {
         toast('Close Call band updated');
-        loadSearch();
+        setTimeout(() => loadSearch(), 250);
         loadDashboard();
     }
 }
@@ -1540,7 +1540,7 @@ async function saveServiceGroup(name, value) {
     const result = await api('search/service-group', { method: 'POST', body: { name: name, enabled: String(value) === '1' } });
     if (result) {
         toast('Service search group updated');
-        loadSearch();
+        setTimeout(() => loadSearch(), 250);
     }
 }
 
@@ -1548,7 +1548,7 @@ async function saveCustomGroup(group, value) {
     const result = await api('search/custom-group', { method: 'POST', body: { group: Number(group), enabled: String(value) === '1' } });
     if (result) {
         toast('Custom search group updated');
-        loadSearch();
+        setTimeout(() => loadSearch(), 250);
     }
 }
 
@@ -1562,7 +1562,7 @@ async function saveSearchRange(index) {
     const result = await api('search/range', { method: 'POST', body: { index: index, lower: lower, upper: upper } });
     if (result) {
         toast('Search range ' + index + ' updated');
-        loadSearch();
+        setTimeout(() => loadSearch(), 250);
     }
 }
 

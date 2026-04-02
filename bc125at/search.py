@@ -6,6 +6,7 @@ search/CC delay, and global frequency lockout management.
 """
 
 from dataclasses import dataclass, field
+import time
 from typing import List, Dict, Optional
 
 # Close Call band names (bit positions left to right)
@@ -74,15 +75,11 @@ class SearchManager:
             resp = self.conn.send_command(command)
             last_resp = resp
             if resp in ("ERR", f"{expected_prefix},NG"):
+                time.sleep(0.1)
                 continue
             if resp and resp.startswith(expected_prefix + ","):
                 return resp
         raise ConnectionError(f"Failed to read {command}: {last_resp}")
-
-    @staticmethod
-    def _protocol_range_index(index):
-        """Scanner protocol uses 0 for the 10th custom search range."""
-        return 0 if int(index) == 10 else int(index)
 
     # --- Close Call ---
 
@@ -213,7 +210,7 @@ class SearchManager:
         parts = resp.split(",")
         try:
             return CustomSearchRange(
-                index=(int(parts[1]) or 10),
+                index=int(parts[1]),
                 lower_freq=int(parts[2]) / 10000.0,
                 upper_freq=int(parts[3]) / 10000.0,
             )
@@ -239,8 +236,7 @@ class SearchManager:
         self.conn.enter_program_mode()
         lo = f"{int(round(sr.lower_freq * 10000)):08d}"
         hi = f"{int(round(sr.upper_freq * 10000)):08d}"
-        protocol_index = self._protocol_range_index(sr.index)
-        resp = self.conn.send_command(f"CSP,{protocol_index},{lo},{hi}")
+        resp = self.conn.send_command(f"CSP,{sr.index},{lo},{hi}")
         if resp != "CSP,OK":
             raise ConnectionError(f"Failed to write search range {sr.index}: {resp}")
         return True
