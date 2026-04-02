@@ -299,15 +299,24 @@ class ChannelManager:
     def __init__(self, conn):
         self.conn = conn
 
+    @staticmethod
+    def _channel_from_response(resp, index=None):
+        """Parse a CIN response, treating CIN,NG as an empty/unreadable slot."""
+        if resp == "CIN,NG":
+            if index is None:
+                raise ConnectionError("Failed to read channel: CIN,NG")
+            return Channel(index=index)
+        if resp and resp.startswith("CIN,"):
+            return Channel.from_scanner_response(resp)
+        raise ConnectionError(f"Failed to read channel {index if index is not None else ''}: {resp}")
+
     def read_channel(self, index):
         """Read a single channel from the scanner."""
         if not 1 <= index <= NUM_CHANNELS:
             raise ValueError(f"Channel index must be 1-{NUM_CHANNELS}")
         self.conn.enter_program_mode()
         resp = self.conn.send_command(f"CIN,{index}")
-        if resp and resp.startswith("CIN,"):
-            return Channel.from_scanner_response(resp)
-        raise ConnectionError(f"Failed to read channel {index}: {resp}")
+        return self._channel_from_response(resp, index=index)
 
     def write_channel(self, channel):
         """Write a single channel to the scanner."""
@@ -379,13 +388,10 @@ class ChannelManager:
         channels = []
         for i in range(1, NUM_CHANNELS + 1):
             resp = self.conn.send_command(f"CIN,{i}")
-            if resp and resp.startswith("CIN,"):
-                ch = Channel.from_scanner_response(resp)
-                channels.append(ch)
-                if callback:
-                    callback(i, ch)
-            else:
-                raise ConnectionError(f"Failed to read channel {i}: {resp}")
+            ch = self._channel_from_response(resp, index=i)
+            channels.append(ch)
+            if callback:
+                callback(i, ch)
         return channels
 
     def get_channel_summary(self):
@@ -428,8 +434,7 @@ class ChannelManager:
         channels = []
         for i in range(start, end):
             resp = self.conn.send_command(f"CIN,{i}")
-            if resp and resp.startswith("CIN,"):
-                channels.append(Channel.from_scanner_response(resp))
+            channels.append(self._channel_from_response(resp, index=i))
         return channels
 
     def get_bank_status(self):
