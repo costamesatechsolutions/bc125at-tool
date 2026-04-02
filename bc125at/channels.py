@@ -230,10 +230,16 @@ class Channel:
         lockout = get(7) == "1"
         priority = get(8) == "1"
 
-        return cls(
+        channel = cls(
             index=index, name=name, frequency=freq, modulation=mod,
             tone_code=tone, delay=delay, lockout=lockout, priority=priority,
         )
+        # Empty slots should not surface stale lockout/priority bits in the app.
+        if channel.is_empty:
+            channel.name = ""
+            channel.lockout = False
+            channel.priority = False
+        return channel
 
     def to_dict(self):
         """Convert to dictionary for JSON/CSV export."""
@@ -300,11 +306,6 @@ class ChannelManager:
         self.conn = conn
 
     @staticmethod
-    def _blank_channel(index):
-        """Return a normalized empty channel with all flags cleared."""
-        return Channel(index=index, name="", frequency=None, modulation="AUTO", tone_code=0, delay=2, lockout=False, priority=False)
-
-    @staticmethod
     def _channel_from_response(resp, index=None):
         """Parse a CIN response, treating CIN,NG as an empty/unreadable slot."""
         if resp == "CIN,NG":
@@ -355,8 +356,6 @@ class ChannelManager:
         resp = self.conn.send_command(f"DCH,{index}")
         if resp not in ("DCH,OK", "DCH,NG"):
             raise ConnectionError(f"Failed to delete channel {index}: {resp}")
-        # Some radios leave lockout/priority bits behind on an "empty" slot.
-        self.write_channel(self._blank_channel(index))
         return True
 
     def clear_bank(self, bank_num, callback=None):
@@ -370,29 +369,23 @@ class ChannelManager:
             resp = self.conn.send_command(f"DCH,{channel_index}")
             if resp not in ("DCH,OK", "DCH,NG"):
                 raise ConnectionError(f"Failed to clear channel {channel_index}: {resp}")
-            self.write_channel(self._blank_channel(channel_index))
             if callback:
                 callback(i, channel_index)
         return True
 
     def unlock_bank(self, bank_num, callback=None):
-        """Clear channel lockouts for all channels in a bank (0-9), including empty slots."""
+        """Clear channel lockouts for programmed channels in a bank (0-9)."""
         if bank_num not in range(NUM_BANKS):
             raise ValueError("Bank must be 0-9")
         unlocked = 0
         for ch in self.read_bank(bank_num):
-            if ch.is_empty:
-                self.write_channel(self._blank_channel(ch.index))
-                unlocked += 1
-                if callback:
-                    callback(unlocked, ch)
+            if ch.is_empty or not ch.lockout:
                 continue
-            if ch.lockout:
-                ch.lockout = False
-                self.write_channel(ch)
-                unlocked += 1
-                if callback:
-                    callback(unlocked, ch)
+            ch.lockout = False
+            self.write_channel(ch)
+            unlocked += 1
+            if callback:
+                callback(unlocked, ch)
         return unlocked
 
     def read_all_channels(self, callback=None):
