@@ -722,7 +722,7 @@ body {
                 <div class="info-item"><div class="label">Weather Alert</div><div class="value" id="statWX">-</div></div>
                 <div class="info-item"><div class="label">Band Plan</div><div class="value" id="statBand">-</div></div>
             </div>
-            <div class="setting-help">To avoid disturbing live scanner behavior, the dashboard no longer reads all 500 channels automatically.</div>
+            <div class="setting-help">The dashboard shows bank status without reading every stored channel. Use the Channels tab when you want full channel details.</div>
         </div>
         <div class="card">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
@@ -1673,11 +1673,6 @@ async function loadSettings() {
         {v:9,l:'9 hours'},{v:10,l:'10 hours'},{v:11,l:'11 hours'},{v:12,l:'12 hours'},
         {v:13,l:'13 hours'},{v:14,l:'14 hours'},{v:15,l:'15 hours'},{v:16,l:'16 hours'}
     ], data.battery_charge_time);
-
-    // Current values
-    html += '<div class="setting-row"><div class="setting-label">Current Backlight</div><div class="setting-value">' + data.backlight_display + '</div></div>';
-    html += '<div class="setting-row"><div class="setting-label">Current Priority</div><div class="setting-value">' + data.priority_display + '</div></div>';
-    html += '<div class="setting-row"><div class="setting-label">Current Key Beep</div><div class="setting-value">' + data.key_beep_display + '</div></div>';
 
     c.innerHTML = html;
 
