@@ -789,6 +789,10 @@ body {
             <p style="color:var(--text2);margin-bottom:16px;font-size:14px;">
                 One-click loading of popular frequency sets. Select a preset and choose which bank to load it into.
             </p>
+            <div style="margin-bottom:16px;">
+                <select id="presetGroupFilter" onchange="renderPresetGrid()" style="background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;font-size:14px;cursor:pointer;">
+                </select>
+            </div>
             <div class="preset-grid" id="presetGrid"></div>
         </div>
     </div>
@@ -1431,21 +1435,36 @@ async function deleteChannel(idx) {
 }
 
 // --- Presets ---
+let allPresets = {};
+
 async function loadPresets() {
     const data = await api('presets');
     if (!data) return;
+    allPresets = data;
+
+    const groups = [...new Set(Object.values(data).map(p => p.group || 'Standard'))];
+    const sel = document.getElementById('presetGroupFilter');
+    sel.innerHTML = groups.map(g => '<option value="' + g + '">' + g + ' Presets</option>').join('');
+
+    renderPresetGrid();
+}
+
+function renderPresetGrid() {
+    const activeGroup = document.getElementById('presetGroupFilter').value;
     const grid = document.getElementById('presetGrid');
     grid.innerHTML = '';
-    Object.entries(data).forEach(([key, preset]) => {
-        const card = document.createElement('div');
-        card.className = 'preset-card';
-        card.onclick = () => showPresetModal(key, preset);
-        card.innerHTML =
-            '<div class="name">' + preset.name + '</div>' +
-            '<div class="desc">' + preset.description + '</div>' +
-            '<div class="meta">' + preset.channel_count + ' channels &middot; Suggested: Bank ' + preset.bank_suggestion + '</div>';
-        grid.appendChild(card);
-    });
+    Object.entries(allPresets)
+        .filter(([, preset]) => (preset.group || 'Standard') === activeGroup)
+        .forEach(([key, preset]) => {
+            const card = document.createElement('div');
+            card.className = 'preset-card';
+            card.onclick = () => showPresetModal(key, preset);
+            card.innerHTML =
+                '<div class="name">' + preset.name + '</div>' +
+                '<div class="desc">' + preset.description + '</div>' +
+                '<div class="meta">' + preset.channel_count + ' channels &middot; Suggested: Bank ' + preset.bank_suggestion + '</div>';
+            grid.appendChild(card);
+        });
 }
 
 async function showPresetModal(key, info) {
