@@ -211,6 +211,177 @@ AVIATION = [
 
 
 # =============================================================================
+# NORDBAYERN / NORTHERN BAVARIA (Germany)
+# Sources: DFS AIP, OurAirports, DARC, BNetzA
+# NOTE: Not for navigation. Verify against current DFS AIP before flight ops.
+# =============================================================================
+
+NORDBAYERN_AVIATION_NUERNBERG = [
+    ("NUE Tower",     118.3050),
+    ("NUE Director",  119.4750),
+    ("NUE Ground",    121.7600),
+    ("NUE ATIS",      123.0800),
+    ("MUC Radar NUE", 129.5250),
+    ("Langen Info",   125.8000),
+    ("Langen Info 2", 120.6500),
+    ("Berlin VOLMET", 128.4050),
+    ("Emergency",     121.5000),
+    ("Air-Air",       123.4500),
+]
+
+NORDBAYERN_AVIATION_OBERFRANKEN = [
+    ("Hof Tower",      124.3550),
+    ("MUC Radar Hof",  118.9750),
+    ("Langen Hof",     125.8000),
+    ("Bayreuth Info",  127.5300),
+    ("Bayreuth ATIS",  119.5600),
+    ("Bayreuth Radar", 118.9750),
+    ("Bamberg Info",   123.4400),
+    ("Bamberg ATIS",   124.1300),
+    ("Bamberg Langen", 125.8000),
+    ("Reserve OFR",    120.6500),
+]
+
+NORDBAYERN_AVIATION_WESTFRANKEN = [
+    ("Wuerzburg Radio", 132.9900),
+    ("Schenkenturm",    122.1750),
+    ("Langen WUE",      119.1500),
+    ("SchwHall Info",   129.2300),
+    ("SchwHall ATIS",   133.8800),
+    ("Langen SH",       128.9500),
+    ("Langen Radar SH", 125.0500),
+    ("Reserve West",    123.4500),
+    ("Emergency",       121.5000),
+    ("VOLMET",          128.4050),
+]
+
+NORDBAYERN_AVIATION_GENERAL = [
+    ("Emergency",       121.5000),
+    ("Search&Rescue",   123.1000),
+    ("Air-Air",         123.4500),
+    ("Berlin VOLMET",   128.4050),
+    ("Shannon VOLMET",  127.6000),
+    ("Shannon VLMT2",   135.5000),
+    ("MUC Radar",       125.0500),
+    ("MUC Radar NUE",   129.5250),
+    ("Langen Info",     125.8000),
+    ("Langen Info 2",   120.6500),
+    ("Langen Info 3",   119.1500),
+    ("Prag Info",       126.1000),
+    ("Praha Radar",     118.3750),
+    ("Wien Info",       124.4000),
+    ("Guard Backup",    121.5000),
+    ("Air-Air Glider",  123.5000),
+    ("Glider DE",       122.1800),
+    ("Ballonfunk",      122.6500),
+    ("Reserve L-L",     122.7500),
+    ("Reserve L-L 2",   123.4750),
+]
+
+NORDBAYERN_AVIATION_EXTENDED = [
+    ("MUC Radar Sekt",  118.5330),
+    ("MUC Radar HOF",   118.9750),
+    ("Air-Air Sonder",  122.6250),
+    ("Hof Tower",       124.3580),
+    ("Bayreuth Info",   127.5330),
+    ("Bayreuth ATIS",   119.5670),
+    ("NUE Tower",       118.3080),
+    ("NUE ATIS",        123.0830),
+    ("MUC Radar NUE",   129.5250),
+    ("MUC Radar High",  135.1330),
+    ("ACARS",           131.5500),
+    ("ACARS VDL",       136.9750),
+]
+
+NORDBAYERN_AMATEUR_2M = [
+    ("2m Relais 1",    145.6000),
+    ("2m Relais 2",    145.6250),
+    ("2m Relais 3",    145.6500),
+    ("2m Relais 4",    145.6750),
+    ("2m Relais 5",    145.7000),
+    ("2m Relais 6",    145.7250),
+    ("2m Relais 7",    145.7500),
+    ("2m Relais 8",    145.7750),
+    ("APRS",           144.8000),
+    ("Anruffrequenz",  145.5000),
+]
+
+NORDBAYERN_AMATEUR_70CM = [
+    ("70cm Relais 1",  438.6500),
+    ("70cm Relais 2",  438.6750),
+    ("70cm Relais 3",  438.7000),
+    ("70cm Relais 4",  438.7250),
+    ("70cm Relais 5",  438.7500),
+    ("70cm Relais 6",  438.7750),
+    ("70cm Relais 7",  439.0000),
+    ("Grosser Arber",  439.2000),
+    ("Arber DMR",      439.2250),
+    ("Reserve 70cm",   439.2500),
+]
+
+NORDBAYERN_ISS_SAT = [
+    ("ISS Voice",      145.8000),
+    ("ISS APRS",       145.8250),
+    ("Amateur Sat 1",  145.9350),
+    ("Amateur Sat 2",  437.5500),
+    ("ISS Repeater",   437.8000),
+    ("Amateur Sat 3",  435.2500),
+    ("Amateur Sat 4",  436.5000),
+    ("Amateur Sat 5",  437.0250),
+    ("Amateur Sat 6",  437.1000),
+    ("Reserve Sat",    437.3000),
+]
+
+NORDBAYERN_FREENET = [
+    ("Freenet 1",      149.0250),
+    ("Freenet 2",      149.0375),
+    ("Freenet 3",      149.0500),
+    ("Freenet 4",      149.0875),
+    ("Freenet 5",      149.1000),
+    ("Freenet 6",      149.1125),
+    ("Reserve FN 7",   149.1250),
+    ("Reserve FN 8",   149.1375),
+    ("Reserve FN 9",   149.1500),
+    ("Reserve FN 10",  149.1625),
+]
+
+NORDBAYERN_PMR446 = [
+    ("PMR 1",  446.00625),
+    ("PMR 2",  446.01875),
+    ("PMR 3",  446.03125),
+    ("PMR 4",  446.04375),
+    ("PMR 5",  446.05625),
+    ("PMR 6",  446.06875),
+    ("PMR 7",  446.08125),
+    ("PMR 8",  446.09375),
+    ("PMR 9",  446.10625),
+    ("PMR 10", 446.11875),
+]
+
+NORDBAYERN_DX_SPECIAL = [
+    ("Luftnotruf",      121.5000),
+    ("Air-Air",         123.4500),
+    ("Berlin VOLMET",   128.4050),
+    ("Shannon VOLMET",  127.6000),
+    ("Shannon VLMT2",   135.5000),
+    ("Segelflug 1",     122.1800),
+    ("Segelflug 2",     123.5000),
+    ("Wettersonde 1",   400.5000),
+    ("Wettersonde 2",   403.0000),
+    ("Wettersonde 3",   405.5000),
+]
+
+NORDBAYERN_WETTERSONDEN = [
+    ("Radiosonde 401",  401.0000),
+    ("Radiosonde 402",  402.0000),
+    ("Radiosonde 403",  403.0000),
+    ("Radiosonde 404",  404.0000),
+    ("Radiosonde 405",  405.0000),
+    ("Radiosonde 406",  406.0000),
+]
+
+
+# =============================================================================
 # PRESET CATALOG
 # =============================================================================
 
@@ -221,6 +392,7 @@ PRESET_CATALOG = {
                        "Team freqs change per event - check racingelectronics.com",
         "frequencies": NASCAR_OPERATIONS + NASCAR_TEAMS_EXAMPLE,
         "bank_suggestion": 1,
+        "group": "Standard",
     },
     "imsa": {
         "name": "IMSA Racing",
@@ -228,6 +400,7 @@ PRESET_CATALOG = {
                        "Team radios may be digital/encrypted at some events.",
         "frequencies": IMSA_OPERATIONS,
         "bank_suggestion": 2,
+        "group": "Standard",
     },
     "indycar": {
         "name": "IndyCar Racing",
@@ -235,6 +408,7 @@ PRESET_CATALOG = {
                        "Team freqs change per event - check racingelectronics.com",
         "frequencies": INDYCAR_OPERATIONS + INDYCAR_TEAMS_EXAMPLE,
         "bank_suggestion": 2,
+        "group": "Standard",
     },
     "racing-all": {
         "name": "All Racing (NASCAR + IMSA + IndyCar)",
@@ -243,6 +417,7 @@ PRESET_CATALOG = {
         "frequencies": NASCAR_OPERATIONS + NASCAR_TEAMS_EXAMPLE +
                        IMSA_OPERATIONS + INDYCAR_OPERATIONS + INDYCAR_TEAMS_EXAMPLE,
         "bank_suggestion": 1,
+        "group": "Standard",
     },
     "marine": {
         "name": "Marine VHF",
@@ -250,6 +425,7 @@ PRESET_CATALOG = {
                        "bridge-to-bridge, USCG, and common working channels.",
         "frequencies": MARINE_VHF,
         "bank_suggestion": 3,
+        "group": "Standard",
     },
     "weather": {
         "name": "NOAA Weather Radio",
@@ -257,6 +433,7 @@ PRESET_CATALOG = {
                        "Note: BC125AT also has a dedicated WX button.",
         "frequencies": WEATHER_NOAA,
         "bank_suggestion": 4,
+        "group": "Standard",
     },
     "frs-gmrs": {
         "name": "FRS / GMRS",
@@ -264,6 +441,7 @@ PRESET_CATALOG = {
                        "events, and general two-way radio.",
         "frequencies": FRS_GMRS,
         "bank_suggestion": 5,
+        "group": "Standard",
     },
     "murs": {
         "name": "MURS",
@@ -271,6 +449,7 @@ PRESET_CATALOG = {
                        "farms, and businesses. License-free.",
         "frequencies": MURS,
         "bank_suggestion": 6,
+        "group": "Standard",
     },
     "railroad": {
         "name": "Railroad",
@@ -278,6 +457,7 @@ PRESET_CATALOG = {
                        "police, maintenance, and defect detectors.",
         "frequencies": RAILROAD,
         "bank_suggestion": 7,
+        "group": "Standard",
     },
     "aviation": {
         "name": "Civil Aviation",
@@ -285,18 +465,142 @@ PRESET_CATALOG = {
                        "ATIS, tower, ground, approach, and center.",
         "frequencies": AVIATION,
         "bank_suggestion": 8,
+        "group": "Standard",
+    },
+    # -------------------------------------------------------------------------
+    # NORDBAYERN / NORTHERN BAVARIA
+    # -------------------------------------------------------------------------
+    "nordbayern-nuernberg": {
+        "name": "Nürnberg (EDDN)",
+        "description": "Tower, Director, Ground, ATIS, München Radar, Langen Info, "
+                       "VOLMET, Emergency. NOT for navigation – verify against DFS AIP.",
+        "frequencies": NORDBAYERN_AVIATION_NUERNBERG,
+        "bank_suggestion": 1,
+        "group": "Nordbayern",
+    },
+    "nordbayern-oberfranken": {
+        "name": "Oberfranken – Hof / Bayreuth / Bamberg",
+        "description": "Hof-Plauen (EDQM), Bayreuth (EDQD), Bamberg (EDQA): "
+                       "Tower, Info, ATIS, München Radar, Langen Info. "
+                       "NOT for navigation – verify against DFS AIP.",
+        "frequencies": NORDBAYERN_AVIATION_OBERFRANKEN,
+        "bank_suggestion": 2,
+        "group": "Nordbayern",
+    },
+    "nordbayern-westfranken": {
+        "name": "West-/Südfranken – Würzburg / Schwäbisch Hall",
+        "description": "Würzburg (EDFW), Schwäbisch Hall (EDTY): "
+                       "Info, ATIS, Langen Info, Radar, Emergency, VOLMET. "
+                       "NOT for navigation – verify against DFS AIP.",
+        "frequencies": NORDBAYERN_AVIATION_WESTFRANKEN,
+        "bank_suggestion": 3,
+        "group": "Nordbayern",
+    },
+    "nordbayern-general": {
+        "name": "Allgemein / Not / Wetter",
+        "description": "Emergency 121.5, SAR, Air-Air, VOLMET Berlin/Shannon, "
+                       "München Radar, Langen Info, Praha/Wien DX, Segelflug, Ballon.",
+        "frequencies": NORDBAYERN_AVIATION_GENERAL,
+        "bank_suggestion": 4,
+        "group": "Nordbayern",
+    },
+    "nordbayern-aviation-extended": {
+        "name": "Erweiterter Flugfunk (8.33 kHz / ACARS)",
+        "description": "Nürnberg, Hof, Bayreuth mit 8.33-kHz-Raster, High-Sector Radar, "
+                       "ACARS 131.550, VDL 136.975. NOT for navigation – verify against DFS AIP.",
+        "frequencies": NORDBAYERN_AVIATION_EXTENDED,
+        "bank_suggestion": 3,
+        "group": "Nordbayern",
+    },
+    "nordbayern-amateur-2m": {
+        "name": "Amateurfunk 2m",
+        "description": "Relais 145.600–145.775, APRS 144.800, Anruffrequenz 145.500. NFM.",
+        "frequencies": NORDBAYERN_AMATEUR_2M,
+        "bank_suggestion": 5,
+        "group": "Nordbayern",
+    },
+    "nordbayern-amateur-70cm": {
+        "name": "Amateurfunk 70cm",
+        "description": "Relais 438.650–439.000, Großer Arber FM 439.200, Arber DMR 439.225. "
+                       "NFM. DMR-Kanäle zeigen Datenburst, kein Sprachempfang.",
+        "frequencies": NORDBAYERN_AMATEUR_70CM,
+        "bank_suggestion": 6,
+        "group": "Nordbayern",
+    },
+    "nordbayern-iss-sat": {
+        "name": "ISS & Amateursatelliten",
+        "description": "ISS Voice 145.800, ISS APRS 145.825, Satelliten-Downlinks "
+                       "145.935 / 435–437 MHz. Bester Empfang während ISS-Überflügen.",
+        "frequencies": NORDBAYERN_ISS_SAT,
+        "bank_suggestion": 7,
+        "group": "Nordbayern",
+    },
+    "nordbayern-freenet": {
+        "name": "Freenet (149 MHz)",
+        "description": "Alle 6 Freenet-Kanäle 149.025–149.113 MHz plus Reserven. "
+                       "Lizenzfrei, NFM, verbreitet in Deutschland.",
+        "frequencies": NORDBAYERN_FREENET,
+        "bank_suggestion": 8,
+        "group": "Nordbayern",
+    },
+    "nordbayern-pmr446": {
+        "name": "PMR446",
+        "description": "Alle 10 PMR446-Kanäle 446.006–446.119 MHz. "
+                       "Lizenzfreie Handfunkgeräte, NFM.",
+        "frequencies": NORDBAYERN_PMR446,
+        "bank_suggestion": 9,
+        "group": "Nordbayern",
+    },
+    "nordbayern-dx": {
+        "name": "DX / Spezial / Wettersonden",
+        "description": "Notfrequenzen, VOLMET, Segelflug (AM), "
+                       "Wettersonden 400–406 MHz (FM).",
+        "frequencies": NORDBAYERN_DX_SPECIAL,
+        "bank_suggestion": 1,
+        "group": "Nordbayern",
+    },
+    "nordbayern-wettersonden": {
+        "name": "Wettersonden / Radiosondes",
+        "description": "Radiosonden-Frequenzen 401–406 MHz (FM). "
+                       "Täglich von DWD-Stationen gestartet, hörbar beim Aufstieg.",
+        "frequencies": NORDBAYERN_WETTERSONDEN,
+        "bank_suggestion": 1,
+        "group": "Nordbayern",
+    },
+    "nordbayern-all": {
+        "name": "Nordbayern – Komplett",
+        "description": "Komplettes Setup: Nürnberg + Oberfranken + Westfranken Flugfunk, "
+                       "Not/Wetter, 2m/70cm Amateur, ISS, Freenet, PMR446, DX. "
+                       "128 Kanäle ab Kanal 1. NOT for navigation – verify against DFS AIP.",
+        "frequencies": (
+            NORDBAYERN_AVIATION_NUERNBERG +
+            NORDBAYERN_AVIATION_OBERFRANKEN +
+            NORDBAYERN_AVIATION_WESTFRANKEN +
+            NORDBAYERN_AVIATION_GENERAL +
+            NORDBAYERN_AVIATION_EXTENDED +
+            NORDBAYERN_AMATEUR_2M +
+            NORDBAYERN_AMATEUR_70CM +
+            NORDBAYERN_ISS_SAT +
+            NORDBAYERN_FREENET +
+            NORDBAYERN_PMR446 +
+            NORDBAYERN_DX_SPECIAL +
+            NORDBAYERN_WETTERSONDEN
+        ),
+        "bank_suggestion": 1,
+        "group": "Nordbayern",
     },
 }
 
 
 def list_presets():
-    """List all available presets with descriptions."""
+    """List all available presets with descriptions, grouped by category."""
     return {
         key: {
             "name": p["name"],
             "description": p["description"],
             "channel_count": len(p["frequencies"]),
             "bank_suggestion": p["bank_suggestion"],
+            "group": p.get("group", "Standard"),
         }
         for key, p in PRESET_CATALOG.items()
     }

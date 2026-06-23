@@ -13,6 +13,7 @@ import threading
 
 UNIDEN_VENDOR_ID = 0x1965
 BC125AT_PRODUCT_ID = 0x0017
+UBC125XLT_PRODUCT_ID = 0x0018  # European model
 
 # CDC ACM endpoints (confirmed from device enumeration)
 DATA_INTERFACE = 1
@@ -35,6 +36,8 @@ class ScannerConnection:
     def connect(self):
         """Find and connect to the BC125AT."""
         self.dev = usb.core.find(idVendor=UNIDEN_VENDOR_ID, idProduct=BC125AT_PRODUCT_ID)
+        if self.dev is None:
+            self.dev = usb.core.find(idVendor=UNIDEN_VENDOR_ID, idProduct=UBC125XLT_PRODUCT_ID)
         if self.dev is None:
             raise ConnectionError(
                 "BC125AT not found. Make sure it's powered on and connected via USB."
@@ -79,7 +82,7 @@ class ScannerConnection:
         # Verify we're talking to the right device (retry a couple times)
         for attempt in range(3):
             resp = self.send_command("MDL")
-            if resp and "BC125AT" in resp:
+            if resp and ("BC125AT" in resp or "UBC125XLT" in resp or "UBC125" in resp):
                 break
             # Flush and retry
             try:
