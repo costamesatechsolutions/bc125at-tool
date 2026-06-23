@@ -128,7 +128,7 @@ DYLD_LIBRARY_PATH="$HOMEBREW_PREFIX/lib" python -m bc125at.web.app
 The app opens automatically at `http://localhost:5125`. From there you can:
 - View and edit all channels visually
 - Load presets with one click
-- Browse built-in presets by category, including the Nordbayern regional collection
+- Browse built-in presets by category, including a contributed Nordbayern regional collection
 - Adjust all safe global settings with sliders and dropdowns
 - Manage bank enable/disable state
 - Clear a bank before repurposing it
@@ -293,6 +293,17 @@ If a JSON file does not include channel numbers, you can still import it by addi
 
 When you choose **Use saved channel numbers from file/text**, the importer keeps the channel positions already stored in the file and only overwrites the channels included in that import. **Clear destination bank first** only applies when you pick one specific destination bank for a sequential load. Full backup JSON files and BC125AT season files always restore their own saved bank layout, settings, and search data.
 
+Preset bank numbers are starting locations. Presets with more than 50 channels continue into the following banks; the 130-channel **Nordbayern – Komplett** preset starts in Bank 1 and occupies channels 1–130 across Banks 1–3. Review the channel count and destination before loading it.
+
+Regional and event frequency presets are convenience starting points, not an authoritative live frequency database. Frequencies and assignments can change, so verify German aviation entries against the current DFS AIP and German licence-free allocations against the Bundesnetzagentur before relying on them.
+
+Reference sources:
+
+- [DFS Basic AIP](https://aip.dfs.de/basicAIP/)
+- [Bundesnetzagentur general frequency assignments](https://www.bundesnetzagentur.de/DE/Fachthemen/Telekommunikation/Frequenzen/Allgemeinzuteilungen/start.html)
+- [NOAA Weather Radio frequencies](https://www.weather.gov/abr/nwr)
+- [FCC personal radio services rules](https://www.ecfr.gov/current/title-47/chapter-I/subchapter-D/part-95)
+
 ## Racing Frequencies Note
 
 Motorsport team frequencies change per event. The presets include race operations channels (race control, safety, timing) which are generally stable, plus example team frequencies.
@@ -305,7 +316,7 @@ The BC125AT is an analog-only scanner. F1 team radio is fully encrypted digital 
 
 ## Supported Hardware
 
-- **Scanners**: Uniden BC125AT (USB Vendor ID `1965`, Product ID `0017`) and European UBC125XLT (Product ID `0018`)
+- **Scanners**: Uniden BC125AT (USB Vendor ID `1965`, Product ID `0017`) and European UBC125XLT (Product ID `0018`, contributor-tested on macOS 15/Apple Silicon)
 - **Potentially compatible**: UBC126AT (international variant, untested)
 - **Mac**: Apple Silicon Mac running macOS 11+ with USB
 - **Connection**: USB cable to scanner, directly or via USB-C hub

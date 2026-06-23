@@ -40,7 +40,7 @@ class ScannerConnection:
             self.dev = usb.core.find(idVendor=UNIDEN_VENDOR_ID, idProduct=UBC125XLT_PRODUCT_ID)
         if self.dev is None:
             raise ConnectionError(
-                "BC125AT not found. Make sure it's powered on and connected via USB."
+                "BC125AT/UBC125XLT not found. Make sure it's powered on and connected via USB."
             )
 
         # Detach kernel drivers if attached
@@ -70,7 +70,7 @@ class ScannerConnection:
                 self.ep_in = ep
 
         if not self.ep_in or not self.ep_out:
-            raise ConnectionError("Could not find USB bulk endpoints on BC125AT.")
+            raise ConnectionError("Could not find USB bulk endpoints on the scanner.")
 
         # Flush any stale data in the read buffer
         for _ in range(5):
