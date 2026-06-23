@@ -11,10 +11,14 @@ if [[ ! -d .venv ]]; then
 fi
 
 source .venv/bin/activate
-HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-$(brew --prefix 2>/dev/null || true)}"
-if [[ -z "${HOMEBREW_PREFIX}" ]]; then
-  HOMEBREW_PREFIX="/opt/homebrew"
+
+if [[ -z "${LIBUSB_PREFIX:-}" ]]; then
+  if command -v brew >/dev/null 2>&1; then
+    LIBUSB_PREFIX="$(brew --prefix libusb 2>/dev/null || brew --prefix)"
+  else
+    LIBUSB_PREFIX="${HOMEBREW_PREFIX:-/opt/homebrew}"
+  fi
 fi
-export DYLD_LIBRARY_PATH="$HOMEBREW_PREFIX/lib"
+export DYLD_LIBRARY_PATH="$LIBUSB_PREFIX/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 
 python -m bc125at.web.app

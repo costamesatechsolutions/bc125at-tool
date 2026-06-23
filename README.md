@@ -121,8 +121,8 @@ If you prefer the manual launch path:
 
 ```bash
 source .venv/bin/activate
-export HOMEBREW_PREFIX="$(brew --prefix)"
-DYLD_LIBRARY_PATH="$HOMEBREW_PREFIX/lib" python -m bc125at.web.app
+export LIBUSB_PREFIX="$(brew --prefix libusb)"
+DYLD_LIBRARY_PATH="$LIBUSB_PREFIX/lib" python -m bc125at.web.app
 ```
 
 The app opens automatically at `http://localhost:5125`. From there you can:
@@ -155,8 +155,7 @@ Control note:
 source .venv/bin/activate
 
 # Set the library path (add to your .zshrc for convenience)
-export HOMEBREW_PREFIX="$(brew --prefix)"
-export DYLD_LIBRARY_PATH="$HOMEBREW_PREFIX/lib"
+export DYLD_LIBRARY_PATH="$(brew --prefix libusb)/lib"
 
 # Scanner info and status
 python3 -m bc125at info
@@ -335,6 +334,7 @@ This tool bypasses the kernel driver entirely by using `libusb` for direct USB b
 ## Troubleshooting
 
 - If the scanner is not detected, make sure it is powered on, then reconnect the USB cable and try again.
+- If PyUSB reports `No backend available`, confirm the active Homebrew and libusb locations with `brew --prefix` and `brew --prefix libusb`. This can happen on Apple Silicon Macs restored from an Intel Mac, where Homebrew may still live under `/usr/local` instead of `/opt/homebrew`. The current `./run.sh` detects the installed libusb formula automatically; you can override it with `LIBUSB_PREFIX="$(brew --prefix libusb)" ./run.sh`.
 - If detection is still flaky, unplug the scanner, power-cycle it, and reconnect before launching the app again.
 - If you see an access denied or insufficient permissions error, close any other scanner software and reconnect the scanner.
 - If the connection times out after a failed attempt, release the scanner in the app, reconnect the USB cable, and try again.
