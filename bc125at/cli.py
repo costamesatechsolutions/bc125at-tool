@@ -371,7 +371,7 @@ def cmd_presets(args):
         for key, info in presets.items():
             print(f"  {key:<15s} {info['name']}")
             print(f"  {'':<15s} {info['description']}")
-            print(f"  {'':<15s} Channels: {info['channel_count']}, Suggested bank: {info['bank_suggestion']}")
+            print(f"  {'':<15s} Channels: {info['channel_count']}, Starting bank: {info['bank_suggestion']}")
             print()
         return
 

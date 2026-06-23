@@ -339,10 +339,6 @@ NORDBAYERN_FREENET = [
     ("Freenet 4",      149.0875),
     ("Freenet 5",      149.1000),
     ("Freenet 6",      149.1125),
-    ("Reserve FN 7",   149.1250),
-    ("Reserve FN 8",   149.1375),
-    ("Reserve FN 9",   149.1500),
-    ("Reserve FN 10",  149.1625),
 ]
 
 NORDBAYERN_PMR446 = [
@@ -356,6 +352,12 @@ NORDBAYERN_PMR446 = [
     ("PMR 8",  446.09375),
     ("PMR 9",  446.10625),
     ("PMR 10", 446.11875),
+    ("PMR 11", 446.13125),
+    ("PMR 12", 446.14375),
+    ("PMR 13", 446.15625),
+    ("PMR 14", 446.16875),
+    ("PMR 15", 446.18125),
+    ("PMR 16", 446.19375),
 ]
 
 NORDBAYERN_DX_SPECIAL = [
@@ -537,7 +539,7 @@ PRESET_CATALOG = {
     },
     "nordbayern-freenet": {
         "name": "Freenet (149 MHz)",
-        "description": "Alle 6 Freenet-Kanäle 149.025–149.113 MHz plus Reserven. "
+        "description": "Alle 6 Freenet-Kanäle 149.025–149.113 MHz. "
                        "Lizenzfrei, NFM, verbreitet in Deutschland.",
         "frequencies": NORDBAYERN_FREENET,
         "bank_suggestion": 8,
@@ -545,7 +547,7 @@ PRESET_CATALOG = {
     },
     "nordbayern-pmr446": {
         "name": "PMR446",
-        "description": "Alle 10 PMR446-Kanäle 446.006–446.119 MHz. "
+        "description": "Alle 16 analogen PMR446-Kanäle 446.006–446.194 MHz. "
                        "Lizenzfreie Handfunkgeräte, NFM.",
         "frequencies": NORDBAYERN_PMR446,
         "bank_suggestion": 9,
@@ -571,7 +573,7 @@ PRESET_CATALOG = {
         "name": "Nordbayern – Komplett",
         "description": "Komplettes Setup: Nürnberg + Oberfranken + Westfranken Flugfunk, "
                        "Not/Wetter, 2m/70cm Amateur, ISS, Freenet, PMR446, DX. "
-                       "128 Kanäle ab Kanal 1. NOT for navigation – verify against DFS AIP.",
+                       "130 Kanäle ab Kanal 1 (Bank 1–3). NOT for navigation – verify against DFS AIP.",
         "frequencies": (
             NORDBAYERN_AVIATION_NUERNBERG +
             NORDBAYERN_AVIATION_OBERFRANKEN +

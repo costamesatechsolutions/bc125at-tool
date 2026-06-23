@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="bc125at",
     version="0.1.0",
-    description="Program the Uniden BC125AT on macOS over USB",
+    description="Program the Uniden BC125AT or UBC125XLT on macOS over USB",
     author="Costa Mesa Tech Solutions",
     author_email="support@costamesatechsolutions.com",
     url="https://github.com/costamesatechsolutions/bc125at-tool",

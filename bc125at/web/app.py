@@ -1464,7 +1464,7 @@ function renderPresetGrid() {
             card.innerHTML =
                 '<div class="name">' + preset.name + '</div>' +
                 '<div class="desc">' + preset.description + '</div>' +
-                '<div class="meta">' + preset.channel_count + ' channels &middot; Suggested: Bank ' + preset.bank_suggestion + '</div>';
+                '<div class="meta">' + preset.channel_count + ' channels &middot; Starts at Bank ' + preset.bank_suggestion + '</div>';
             grid.appendChild(card);
         });
 }
