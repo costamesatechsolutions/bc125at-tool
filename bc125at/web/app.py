@@ -213,6 +213,8 @@ def _build_import_preview(channels, target_bank=None, clear_bank_first=False, tr
         "kind": kind,
         "count": len(channels),
         "destination": destination,
+        "bank_target": "keep" if target_bank is None else str(target_bank),
+        "clear_bank_first": bool(clear_bank_first and target_bank is not None),
         "truncated": truncated or 0,
         "preview_items": preview_items,
     }
@@ -1882,7 +1884,7 @@ async function confirmImportPreview() {
             if (!file) throw new Error('Select a file again before importing');
             const formData = new FormData();
             formData.append('file', file);
-            const options = currentImportOptions();
+            const options = pendingImportPreview;
             const isSeasonFile = /[.]bc125at_ss$/i.test(file.name);
             if (!isSeasonFile) {
                 formData.append('bank_target', options.bank_target);
@@ -1895,7 +1897,8 @@ async function confirmImportPreview() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     text: document.getElementById('pasteImportText').value,
-                    ...currentImportOptions()
+                    bank_target: pendingImportPreview.bank_target,
+                    clear_bank_first: pendingImportPreview.clear_bank_first
                 })
             });
         }
@@ -2785,8 +2788,8 @@ def api_import():
             cm.clear_bank(target_bank)
         cm.write_channels(channels)
         message = f"Imported {len(channels)} channels"
-        if target_bank is not None:
-            message += f" into bank {target_bank}"
+        if target_bank is not None and channels:
+            message += f" into bank {target_bank} (channels {channels[0].index}-{channels[-1].index})"
         if truncated:
             message += f" ({truncated} skipped because a bank only holds 50 channels)"
         return jsonify({"ok": True, "message": message})
@@ -2849,8 +2852,8 @@ def api_import_text():
         cm.write_channels(channels)
 
         message = f"Imported {len(channels)} pasted channels"
-        if target_bank is not None:
-            message += f" into bank {target_bank}"
+        if target_bank is not None and channels:
+            message += f" into bank {target_bank} (channels {channels[0].index}-{channels[-1].index})"
         if truncated:
             message += f" ({truncated} skipped because a bank only holds 50 channels)"
         return jsonify({"ok": True, "message": message})

@@ -128,6 +128,7 @@ DYLD_LIBRARY_PATH="$HOMEBREW_PREFIX/lib" python -m bc125at.web.app
 The app opens automatically at `http://localhost:5125`. From there you can:
 - View and edit all channels visually
 - Load presets with one click
+- Browse built-in presets by category, including the Nordbayern regional collection
 - Adjust all safe global settings with sliders and dropdowns
 - Manage bank enable/disable state
 - Clear a bank before repurposing it
@@ -304,8 +305,8 @@ The BC125AT is an analog-only scanner. F1 team radio is fully encrypted digital 
 
 ## Supported Hardware
 
-- **Scanner**: Uniden BC125AT (USB Vendor ID `1965`, Product ID `0017`)
-- **Also works with**: UBC125XLT, UBC126AT (international variants, untested)
+- **Scanners**: Uniden BC125AT (USB Vendor ID `1965`, Product ID `0017`) and European UBC125XLT (Product ID `0018`)
+- **Potentially compatible**: UBC126AT (international variant, untested)
 - **Mac**: Apple Silicon Mac running macOS 11+ with USB
 - **Connection**: USB cable to scanner, directly or via USB-C hub
 
@@ -332,7 +333,7 @@ This tool bypasses the kernel driver entirely by using `libusb` for direct USB b
 Contributions are welcome! Some areas that would be great to improve:
 
 - Additional frequency presets for specific regions/services
-- Testing on UBC125XLT/UBC126AT international variants
+- Additional testing on UBC125XLT and UBC126AT international variants
 - UI improvements and new features
 - Bug reports from different Mac/macOS configurations
 
