@@ -42,6 +42,6 @@ Next time, start the web app with:
 
 Or use the CLI with:
   source .venv/bin/activate
-  export DYLD_LIBRARY_PATH=$HOMEBREW_PREFIX/lib
+  export DYLD_LIBRARY_PATH="$(brew --prefix libusb)/lib"
   python -m bc125at --help
 EOF
