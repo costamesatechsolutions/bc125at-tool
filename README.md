@@ -52,7 +52,7 @@ In normal use, the most likely failure mode is a bad channel or an unwanted sett
 
 ## Disclaimer
 
-This project is provided **as-is**, without warranties of any kind. You are responsible for reviewing changes before writing them to your scanner and for using the software in a lawful and safe manner. Pine Heights Ventures LLC, and Costa Mesa Tech Solutions dba Pine Heights Ventures LLC, are not liable for data loss, missed communications, configuration mistakes, hardware issues, regulatory misuse, or any indirect or consequential damages arising from use of this project.
+This project is provided **as-is**, without warranties of any kind. You are responsible for reviewing changes before writing them to your scanner and for using the software in a lawful and safe manner. Pine Heights Ventures LLC dba Costa Mesa Tech Solutions is not liable for data loss, missed communications, configuration mistakes, hardware issues, regulatory misuse, or any indirect or consequential damages arising from use of this project.
 
 ## Installation
 
